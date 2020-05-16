@@ -4,9 +4,8 @@ version: 0.1.0
 authors:
   - kristof <kristof@incubaid.com>
 
-targets:
-  crystal_tools:
-    main: src/crystal_tools.cr
+libraries:
+  crystaltools: "*"  
 
 crystal: 0.34.0
 
