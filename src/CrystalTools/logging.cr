@@ -1,5 +1,4 @@
 module CrystalTools
-  VERSION = "0.1.0"
 
   macro log(msg,level=1)
     msg1 = {{msg}}

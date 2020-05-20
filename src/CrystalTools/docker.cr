@@ -1,34 +1,42 @@
 require "docker"
 
 module CrystalTools
-  VERSION = "0.1.0"
 
 
-  class Dockers
-    include CrystalTools
+  class CDockers
+    # include CrystalTools
 
-    def initialize(@name : String)
+    def initialize()
       @client = Docker::Client.new()
     end
 
-    def self.containers()
+    def containers()
       @client.containers.list()
     end
     
-    def create(name: String)
-      DockerContainer name
+    def create(name : String)
+      CDockerContainer.new self, name
     end
+
+    #remove all containers who were created but not started
+    def cleanup
+      raise "not done yet"
+    end
+
+    #remove all containers
+    def deleteall()
+      `docker rm -f $(docker ps -a -q)`
+    end
+
 
   end
 
-  class DockerContainer
+  class CDockerContainer
     include CrystalTools
 
-    
+    def initialize(@factory : CDockers, @name : String)
 
-    def initialize(@name : String)
-
-      cs = Docker.containers
+      cs = @factory.containers
       pp cs
 
       @ipaddr = ""

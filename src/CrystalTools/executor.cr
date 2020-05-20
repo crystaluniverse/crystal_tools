@@ -1,8 +1,7 @@
 module CrystalTools
-  VERSION = "0.1.0"
 
   class Executor
-    include CrystalTools
+    # include CrystalTools
 
     def self.exec_ok(cmd)
       `#{cmd} 2>&1 &>/dev/null`
