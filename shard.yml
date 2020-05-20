@@ -7,6 +7,10 @@ authors:
 libraries:
   crystaltools: "*"  
 
+dependencies:
+  docker:
+    github: aca-labs/crystal-docker
+
 crystal: 0.34.0
 
 license: MIT

@@ -40,9 +40,9 @@ module CrystalTools
       else
         #TODO: how can we read from the stderror
         if error_msg == ""
-          error "could not execute: #{cmd}\n#{res}"
+          CrystalTools.error "could not execute: #{cmd}\n#{res}"
         else
-          error "#{error_msg}",res
+          CrystalTools.error "#{error_msg}",res
         end
       end    
       res
