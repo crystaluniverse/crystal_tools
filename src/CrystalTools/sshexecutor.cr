@@ -22,15 +22,15 @@ class SSHExecutor
     end
   end
 
-  def scp_send_file(path)
+  def scp_send_file(path, dest = path)
     connect_ssh do |session|
-      session.scp_send_file(path)
+      session.scp_send_file(path, dest)
     end
   end
 
-  def scp_recv_file(path)
+  def scp_recv_file(path, dest = path)
     connect_ssh do |session|
-      session.scp_recv_file(path)
+      session.scp_recv_file(path, dest)
     end
   end
 
@@ -57,10 +57,12 @@ class SSHExecutor
   end
 
   def shell
+    # Start remote ssh shell
     connect_ssh do |session|
       session.open_session do |channel|
         # request the terminal has echo mode off
         channel.request_pty("vt100", [{SSH2::TerminalMode::ECHO, 0u32}])
+        puts "*** shell started, type exit to close it ***"
         channel.shell
         spawn { read_output(channel) }
         loop do
@@ -81,22 +83,3 @@ class SSHExecutor
     end
   end
 end
-
-executor = SSHExecutor.new
-executor.hostaddr = "172.17.0.2"
-# executor.connect_ssh do |session|
-#   rc, output = executor.execute("ls /
-# uptime")
-#   puts "Exit status "
-#   puts rc
-#   puts "output"
-#   puts output
-# end
-executor.shell
-# executor.connect_ssh do |session|
-#   rc, output = executor.execute("ls /")
-#   puts "Exit status "
-#   puts rc
-#   puts "output"
-#   puts output
-# end
