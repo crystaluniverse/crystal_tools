@@ -1,7 +1,7 @@
 module CrystalTools
   macro log(msg, level = 1)
 
-    if ENV.fetch("DEBUG") == 1
+    if ENV.fetch("DEBUG", "0") == "1"
       msg1 = {{msg}}
       #expand to 25
       ffrom = {{ @type.stringify }}.downcase()[0,25].ljust(25)
