@@ -10,6 +10,12 @@ libraries:
 dependencies:
   docker:
     github: aca-labs/crystal-docker
+  toml:
+    github: crystal-community/toml.cr
+    branch: master    
+  redis:
+    github: stefanwille/crystal-redis
+    version: ~> 2.6.0
   neph:
     github: tbrand/neph
     version: 0.2.12
