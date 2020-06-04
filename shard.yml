@@ -10,6 +10,9 @@ libraries:
 dependencies:
   docker:
     github: aca-labs/crystal-docker
+  neph:
+    github: tbrand/neph
+    version: 0.2.12
 
 crystal: 0.34.0
 
