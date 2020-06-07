@@ -19,6 +19,9 @@ dependencies:
   neph:
     github: tbrand/neph
     version: 0.2.12
+  ssh2:
+    github: crystaluniverse/ssh2.cr
+    version: ~> 1.3.3
 
 crystal: 0.34.0
 

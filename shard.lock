@@ -1,0 +1,14 @@
+version: 1.0
+shards:
+  crystar:
+    github: naqvis/crystar
+    version: 0.1.5
+
+  docker:
+    github: aca-labs/crystal-docker
+    commit: 898cea2884ea1305e49b7e52c5fa5d0553f843c2
+
+  ssh2:
+    github: spider-gazelle/ssh2.cr
+    version: 1.3.3
+
