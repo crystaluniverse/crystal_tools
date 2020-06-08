@@ -1,3 +1,27 @@
+# This modules is used to execute commands on remote machine using libssh2
+# to use it
+# simply create an object from SSHExecutor class
+# ```
+# executor = SSHExecutor.new
+# executor.hostaddr = "172.17.0.2"
+# ```
+# to execute remote command you can do
+# ```
+# rc, output = executor.execute("ls /")
+# puts output
+# ```
+
+# to send and receive files from the remote machine
+# ```
+# executor.scp_send_file("<path>", "<remote_path>")
+# executor.scp_recv_file("<remote_path>", "<local_path>")
+# ```
+# to open interactive shell session
+# ```
+# executor.shell
+# ```
+# and to close it type `exit`
+
 require "ssh2"
 
 class SSHExecutor
