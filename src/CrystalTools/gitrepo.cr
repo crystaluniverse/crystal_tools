@@ -10,43 +10,82 @@ module CrystalTools
     # property repos : Hash(String,GITRepo)
     # reponame's to path
 
-    def initialize
+    def initialize(@environment : String = "" )
       @repos = {} of String => GITRepo
       @repos_path = {} of String => String
       @codedir = Path["~/code"].expand(home: true).to_s
       @sshagent_loaded = Executor.exec_ok("ssh-add -l")
     end
 
-
-    def repo_remember(r : GITRepo)
-      redis = RedisFactory.core_get
-      key = "crystaltools:git:latestreponame"
-      redis.set "crystaltools:git:latestreponame", r.@name
-    end
-
-    def repo_get(name  : String = "")
-      if name == ""
-        redis = RedisFactory.core_get
-        key = "crystaltools:git:latestreponame"
-        name2 = redis.get "crystaltools:git:latestreponame"
-        if name2 == nil
-          name = ""
+    def repo_names_get(name : String)
+      names = [] of String
+      if name.includes?(',')
+        names = name.split(",")
+      elsif name.strip == ""
+        if Dir.exists?("#{Dir.current}/.git")
+          path = Dir.current
+          name = Path[path].basename
+          names = [name]
         else
-          name = name2.as(String)
-        end
-      end 
-      if name == ""
-        raise "Cannot find repo, name not specified (or url or path)"
+          #find all repo's underneith the path we are in
+          path = Dir.current
+          Dir.glob("#{path}/**/*/.git").each do |p|
+            if ! p.downcase.includes?("backup")  
+              dirname = File.dirname(p)
+              names << Path[dirname].basename
+            end
+          end
+        end        
+      else
+        names = [name]
       end
-      return get name: name
+      return names
+
     end
+
+    # def repo_remember(r : GITRepo)
+    #   redis = RedisFactory.core_get
+    #   key = "crystaltools:git:latestreponame"
+    #   redis.set "crystaltools:git:latestreponame", r.@name
+    # end
+
+    # def repo_get(name  : String = "")
+    #   if name == ""
+    #     redis = RedisFactory.core_get
+    #     key = "crystaltools:git:latestreponame"
+    #     name2 = redis.get "crystaltools:git:latestreponame"
+    #     if name2 == nil
+    #       name = ""
+    #     else
+    #       name = name2.as(String)
+    #     end
+    #   end 
+    #   if name == ""
+    #     raise "Cannot find repo, name not specified (or url or path)"
+    #   end
+    #   return get name: name
+    # end
 
     def sshagent_loaded
       @sshagent_loaded
     end
 
-    def get(@name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @environment = "", @depth = 0)
+    def get(name = "", path = "", url = "", branch = "", branchswitch = false, depth = 0)
       nameL = name.downcase
+
+
+      if path == "" && url == "" && name == ""
+
+        if Dir.exists?("#{Dir.current}/.git")
+          path = Dir.current
+        else
+          #can see if there was a last repo remembered
+          # return repo_get
+          CrystalTools.error "Cannot get repo: path & url is empty, was name:#{name}"
+        end
+  
+      end
+
 
       if name != ""
         if @repos.empty?
@@ -58,20 +97,23 @@ module CrystalTools
           return @repos[nameL]
         end
         if @repos_path.has_key?(nameL)
-          gr = GITRepo.new(self, name, repos_path[nameL])
-          @repos[nameL] = gr
-          gr.repo_ensure
-          return gr
+          path = @repos_path[nameL]
         end
       end
 
-      if @path == "" && @url == ""
+      if path == "" && url == ""
+
         #can see if there was a last repo remembered
-        return repo_get
-        # CrystalTools.error "Cannot get repo: path & url is empty, was name:#{name}"
+        # return repo_get
+        CrystalTools.error "Cannot get repo: path & url is empty, was name:#{name}"
+  
       end
 
-      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, environment: environment, depth: depth
+      if name == "" && url == ""
+        name = Path[path].basename
+      end
+
+      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, environment: @environment, depth: depth
       repos[nameL] = gr
       gr.repo_ensure
       gr
@@ -115,6 +157,11 @@ module CrystalTools
                       # d4 = Dir.new(repo_dir)
                       if Dir.exists?("#{repo_dir}/.git")
                         # CrystalTools.log("  ... #{name}:  #{repo_dir}",4)
+                        if @repos_path[name]? != nil
+                          r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
+                          r2 = GITRepo.new gitrepo_factory: self, path: repo_dir
+                          CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos_path[name]} and #{repo_dir}"
+                        end
                         @repos_path[name] = repo_dir
                       end
                     end
@@ -141,15 +188,14 @@ module CrystalTools
     property provider = "github"
     property provider_suffix = ".com"
     property environment = ""
-    property depth = 1
+    property depth = 0
     property gitrepo_factory : GITRepoFactory
     property pulled = false
 
     include CrystalTools
 
     def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @environment = "", @depth = 0)
-      # TODO: check if ssh-agent loaded, if yes use git notation, otherwise html
-      #   @url = "" # TODO: fill in the right url (git or http), if http no authentication
+
       if @path == "" && @url == ""
         error "path and url are empty #{name}"
       end
@@ -160,6 +206,9 @@ module CrystalTools
         url_on_fs = try_read_url_from_path()
         # log url_on_fs
         # give url on fs priority
+        if @url != "" && @url != url_on_fs
+          CrystalTools.error "url mismatch: #{@url} and #{url_on_fs}"
+        end
         if url_on_fs != ""
           @url = url_on_fs
         end
@@ -186,18 +235,16 @@ module CrystalTools
         @url = url_as_https
       end
 
-      # make sure the repository exists
-      # repo_ensure()
       log "git repo on: #{@path}"
-      log "git url: #{@url}", 2
+      log "git url: #{@url}"
     end
 
     # make sure we use ssh instead of https for pushing
     private def change_to_ssh
-      CrystalTools.log "CHANGING TO SSH #{@url}", 3
       re = /url = https:.*/m
       path_config = "#{@path}/.git/config"
       if Dir.exists? path_config
+        CrystalTools.log "CHANGING TO SSH #{@url}", 2
         file_content = File.read path_config
         file_content = file_content.gsub(/url = https:.*/m, "url = #{url_as_ssh}.git")
         # puts file_content
@@ -234,34 +281,30 @@ module CrystalTools
       base_dir
     end
 
-    # location of the git repository
-    def dir_repo
-      @path = Path["#{base_dir}/#{@provider}/#{@account}/#{name}"].expand(home: true).to_s
-    end
-
-    # make sure the directory exists
-    private def dir_repo_ensure
-      d = dir_repo()
-      Dir.mkdir_p(d)
-      d
-    end
-
     private def dir_account_ensure
-      d = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
-      Dir.mkdir_p(d)
-      d
+      if @path == ""
+        path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
+        if ! Dir.exists?(path0.to_s)
+          CrystalTools.log "create path: #{path0.to_s}",3
+          Dir.mkdir_p(path0)
+        end
+        return path0.to_s
+        
+      else
+        if ! Dir.exists? @path
+          CrystalTools.error "Cannot find #{@path}, is where git repo should be."
+        end
+        return Path[@path].parent.to_s
+      end
+
     end
 
-    # def rewrite_http_to_ssh_url
-    #   rewritten_url = @url # let's assume ssh is the default.
-    #   parse_provider_account_repo()
-    #   url_as_ssh(@provider, @account, @reponame)
-    # end
 
     # get the parts of the url, parse to provider, account, name, path properties on obj
     private def parse_provider_account_repo
-      account_dir = ""
-      rewritten_url = @url # let's assume ssh is the default.
+      # account_dir = ""
+      # rewritten_url = @url # let's assume ssh is the default.
+      path0 = ""
       if @url.starts_with?("http")
         m = HTTP_REPO_URL.match(@url)
         m.try do |validm|
@@ -269,34 +312,53 @@ module CrystalTools
           @provider_suffix = validm.not_nil!["suffix"].to_s
           @account = validm.not_nil!["account"].to_s
           @name = validm.not_nil!["repo"].to_s
+          account_dir = dir_account_ensure()          
+          path0 = File.join(account_dir, @name)
+          CrystalTools.log "path0_http:#{account_dir}"
+        end
+        if path0 == ""
+          CrystalTools.error "Could not parse url from http: \"#{@url}\""
+        end
+      elsif @url.starts_with?("git@")
+        m = SSH_REPO_URL.match(@url)
+        m.try do |validm|
+          @provider = validm.not_nil!["provider"].to_s
+          @account = validm.not_nil!["account"].to_s
+          @name = validm.not_nil!["repo"].to_s
           account_dir = dir_account_ensure()
-          @path = File.join(account_dir, @name)
+          path0 = File.join(account_dir, name)
+          CrystalTools.log "path0_git:#{account_dir}"
+        end
+        if path0 == ""
+          CrystalTools.error "Could not parse url from git: \"#{@url}\""
         end
       else
-        if @url.starts_with?("git@")
-          m = SSH_REPO_URL.match(@url)
-          m.try do |validm|
-            @provider = validm.not_nil!["provider"].to_s
-            @account = validm.not_nil!["account"].to_s
-            @name = validm.not_nil!["repo"].to_s
-            account_dir = dir_account_ensure()
-            @path = File.join(account_dir, name)
-          end
-        end
+        CrystalTools.error "url needs to start with to be git or http. #{@url}"
       end
+      CrystalTools.log @path, 2
+      CrystalTools.log "#{path0}", 2
+      CrystalTools.log "#{@url}", 2
+      if @path == ""
+        @path = path0
+      elsif @path != path0 && path0 != ""
+        CrystalTools.error "Path not on right location, found on fs: #{@path}, but should be #{path0}"
+      end
+
     end
 
     # pull if needed, update if the directory is already there & .git found
     # clone if directory is not there
     # if there is data in there, ask to commit, ask message if @autocommit is on
     # if branchname specified, check branchname is the same, if not and @branchswitch is True switch branch, otherwise error
-    def pull(force = false)
-      unless Dir.exists?(@path)
-        repo_ensure() # handles the cloning, existence and the correct branch already.
-      end
+    def pull(force = false, msg = "")
+      CrystalTools.log " - Pull #{@path}", 2
+      repo_ensure() # handles the cloning, existence and the correct branch already.
       if force
         reset()
       else
+        if changes()
+          commit msg
+        end
         Executor.exec("cd #{@path} && git pull")
       end
     end
@@ -316,16 +378,18 @@ module CrystalTools
     def repo_ensure
       unless Dir.exists?(@path)
         account_dir = dir_account_ensure()
-        CrystalTools.log "cloning into #{@path} (dir did not exist)"
-        if @depth != 0
-          Executor.exec("cd #{account_dir} && git clone #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
-        else
-          Executor.exec("cd #{account_dir} && git clone #{@url}")
-        end
-        pull()
-        File.join(account_dir, @name)
+        if account_dir != ""
+          CrystalTools.log "cloning into #{@path} (dir did not exist)"
+          if @depth != 0
+            Executor.exec("cd #{account_dir} && git clone #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
+          else
+            Executor.exec("cd #{account_dir} && git clone #{@url}")
+          end
+          pull()
+          return File.join(account_dir, @name)
+        end        
       end
-      ""
+      return ""
     end
 
     # return the branchname from the repo on the filesystem, if it doesn't exist yet do an update
@@ -338,11 +402,6 @@ module CrystalTools
       raise "not implemented"
     end
 
-    # def has_sshagent
-    #   `ps aux | grep -v grep | grep ssh-agent`
-    #   $?.success?
-    # end
-
     # delete the repo
     def delete
       FileUtils.rm_rf(@path)
@@ -351,8 +410,13 @@ module CrystalTools
     # commit the new info, automatically do an add of all files
     def commit(msg : String)
       repo_ensure()
+      if msg == ""
+        puts "Changes found in repo: #{@path}"
+        puts "please provide message:"
+        msg = read_line.chomp
+      end
       if changes()
-        Executor.exec("cd #{repo_path} && git add -u && git commit -m #{msg}")
+        Executor.exec("cd #{@path} && git add . -A && git commit -m \"#{msg}\"")
       end
     end
 
@@ -369,17 +433,15 @@ module CrystalTools
 
     # commit, pull, push
     def commit_pull_push(msg : String)
-      # CrystalTools.log " - Commit #{@path} : #{msg}"
+      # CrystalTools.log " - Pull/Push/Commit #{@path} : #{msg}", 2
       repo_ensure()
       # CrystalTools.log msg,3
-      if changes()
-        Executor.exec("cd #{@path} && git add . -A && git commit -m '#{msg}'")
-      end
-      pull()
+      pull(msg: msg)
       push()
     end
 
     def push
+      CrystalTools.log " - Push #{@path}", 2
       repo_ensure()
       Executor.exec("cd #{@path} && git push")
     end
