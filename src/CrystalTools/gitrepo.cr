@@ -10,7 +10,7 @@ module CrystalTools
     # property repos : Hash(String,GITRepo)
     # reponame's to path
 
-    def initialize(@environment : String = "" )
+    def initialize(@environment : String = "")
       @repos = {} of String => GITRepo
       @repos_path = {} of String => String
       @codedir = Path["~/code"].expand(home: true).to_s
@@ -27,20 +27,19 @@ module CrystalTools
           name = Path[path].basename
           names = [name]
         else
-          #find all repo's underneith the path we are in
+          # find all repo's underneith the path we are in
           path = Dir.current
           Dir.glob("#{path}/**/*/.git").each do |p|
-            if ! p.downcase.includes?("backup")  
+            if !p.downcase.includes?("backup")
               dirname = File.dirname(p)
               names << Path[dirname].basename
             end
           end
-        end        
+        end
       else
         names = [name]
       end
       return names
-
     end
 
     # def repo_remember(r : GITRepo)
@@ -59,7 +58,7 @@ module CrystalTools
     #     else
     #       name = name2.as(String)
     #     end
-    #   end 
+    #   end
     #   if name == ""
     #     raise "Cannot find repo, name not specified (or url or path)"
     #   end
@@ -73,19 +72,15 @@ module CrystalTools
     def get(name = "", path = "", url = "", branch = "", branchswitch = false, depth = 0)
       nameL = name.downcase
 
-
       if path == "" && url == "" && name == ""
-
         if Dir.exists?("#{Dir.current}/.git")
           path = Dir.current
         else
-          #can see if there was a last repo remembered
+          # can see if there was a last repo remembered
           # return repo_get
           CrystalTools.error "Cannot get repo: path & url is empty, was name:#{name}"
         end
-  
       end
-
 
       if name != ""
         if @repos.empty?
@@ -102,11 +97,9 @@ module CrystalTools
       end
 
       if path == "" && url == ""
-
-        #can see if there was a last repo remembered
+        # can see if there was a last repo remembered
         # return repo_get
         CrystalTools.error "Cannot get repo: path & url is empty, was name:#{name}"
-  
       end
 
       if name == "" && url == ""
@@ -195,7 +188,6 @@ module CrystalTools
     include CrystalTools
 
     def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @environment = "", @depth = 0)
-
       if @path == "" && @url == ""
         error "path and url are empty #{name}"
       end
@@ -284,21 +276,18 @@ module CrystalTools
     private def dir_account_ensure
       if @path == ""
         path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
-        if ! Dir.exists?(path0.to_s)
-          CrystalTools.log "create path: #{path0.to_s}",3
+        if !Dir.exists?(path0.to_s)
+          CrystalTools.log "create path: #{path0.to_s}", 3
           Dir.mkdir_p(path0)
         end
         return path0.to_s
-        
       else
-        if ! Dir.exists? @path
+        if !Dir.exists? @path
           CrystalTools.error "Cannot find #{@path}, is where git repo should be."
         end
         return Path[@path].parent.to_s
       end
-
     end
-
 
     # get the parts of the url, parse to provider, account, name, path properties on obj
     private def parse_provider_account_repo
@@ -312,7 +301,7 @@ module CrystalTools
           @provider_suffix = validm.not_nil!["suffix"].to_s
           @account = validm.not_nil!["account"].to_s
           @name = validm.not_nil!["repo"].to_s
-          account_dir = dir_account_ensure()          
+          account_dir = dir_account_ensure()
           path0 = File.join(account_dir, @name)
           CrystalTools.log "path0_http:#{account_dir}"
         end
@@ -320,6 +309,7 @@ module CrystalTools
           CrystalTools.error "Could not parse url from http: \"#{@url}\""
         end
       elsif @url.starts_with?("git@")
+        @url = @url + ".git" unless @url.ends_with?(".git")
         m = SSH_REPO_URL.match(@url)
         m.try do |validm|
           @provider = validm.not_nil!["provider"].to_s
@@ -343,7 +333,6 @@ module CrystalTools
       elsif @path != path0 && path0 != ""
         CrystalTools.error "Path not on right location, found on fs: #{@path}, but should be #{path0}"
       end
-
     end
 
     # pull if needed, update if the directory is already there & .git found
@@ -387,7 +376,7 @@ module CrystalTools
           end
           pull()
           return File.join(account_dir, @name)
-        end        
+        end
       end
       return ""
     end
