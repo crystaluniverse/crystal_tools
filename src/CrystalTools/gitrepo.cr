@@ -187,6 +187,10 @@ module CrystalTools
 
     include CrystalTools
 
+    def to_s
+      "GitRepo<#{@name} at #{@path}>"
+    end
+
     def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @environment = "", @depth = 0)
       if @path == "" && @url == ""
         error "path and url are empty #{name}"
