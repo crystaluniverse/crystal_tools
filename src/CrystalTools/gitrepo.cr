@@ -276,13 +276,13 @@ module CrystalTools
     private def dir_account_ensure
       if @path == ""
         path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
-        if !Dir.exists?(path0.to_s)
+        unless Dir.exists?(path0.to_s)
           CrystalTools.log "create path: #{path0.to_s}", 3
           Dir.mkdir_p(path0)
         end
         return path0.to_s
       else
-        if !Dir.exists? @path
+        unless Dir.exists? Path[@path].parent.to_s
           CrystalTools.error "Cannot find #{@path}, is where git repo should be."
         end
         return Path[@path].parent.to_s
