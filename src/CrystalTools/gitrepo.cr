@@ -238,7 +238,7 @@ module CrystalTools
       if Dir.exists? path_config
         CrystalTools.log "CHANGING TO SSH #{@url}", 2
         file_content = File.read path_config
-        file_content = file_content.gsub(/url = https:.*/m, "url = #{url_as_ssh}.git")
+        file_content = file_content.gsub(/url = https:.*/m, "url = #{url_as_ssh}")
         # puts file_content
         File.write("#{@path}/.git/config", file_content)
       end
@@ -261,7 +261,7 @@ module CrystalTools
 
     # return the url in git ssh format
     def url_as_ssh
-      "git@#{@provider}#{@provider_suffix}:#{@account}/#{@name}"
+      "git@#{@provider}#{@provider_suffix}:#{@account}/#{@name}.git"
     end
 
     def base_dir
