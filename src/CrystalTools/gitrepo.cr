@@ -278,19 +278,12 @@ module CrystalTools
     end
 
     private def dir_account_ensure
-      if @path == ""
-        path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
-        unless Dir.exists?(path0.to_s)
-          CrystalTools.log "create path: #{path0.to_s}", 3
-          Dir.mkdir_p(path0)
-        end
-        return path0.to_s
-      else
-        unless Dir.exists? Path[@path].parent.to_s
-          CrystalTools.error "Cannot find #{@path}, is where git repo should be."
-        end
-        return Path[@path].parent.to_s
+      path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
+      unless Dir.exists?(path0.to_s)
+        CrystalTools.log "create path: #{path0.to_s}", 3
+        Dir.mkdir_p(path0)
       end
+      return path0.to_s
     end
 
     # get the parts of the url, parse to provider, account, name, path properties on obj
