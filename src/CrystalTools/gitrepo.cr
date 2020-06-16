@@ -6,7 +6,7 @@ module CrystalTools
     property codedir : String
     property repos : Hash(String, GITRepo)
     property repos_path : Hash(String, String)
-
+    property environment : String
     # property repos : Hash(String,GITRepo)
     # reponame's to path
 
