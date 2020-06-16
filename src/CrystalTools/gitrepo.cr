@@ -11,7 +11,7 @@ module CrystalTools
     # property repos : Hash(String,GITRepo)
     # reponame's to path
 
-    def initialize(@environment : String = "")
+    def initialize
       @repos = {} of String => GITRepo
       @repos_path = {} of String => String
       @codedir = Path["~/code"].expand(home: true).to_s
