@@ -31,7 +31,8 @@ module CrystalDo
         argument "name", type: String, required: false, desc: "name of the repo, if not mentioned is the last one", default: ""
         option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
         run do |opts, args|
-          gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+          gitrepo_factory = GITRepoFactory.new
+          gitrepo_factory.environment = opts.env
           r = gitrepo_factory.get(name: args.name)
           Executor.exec "code '#{r.@path}'"
         end
@@ -54,7 +55,8 @@ module CrystalDo
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new
+            gitrepo_factory.environment = opts.env
 
             gitrepo_factory.scan
 
@@ -80,7 +82,8 @@ module CrystalDo
           option "-m WORDS", "--message=WORDS", type: String, required: false, desc: "message for the commit when pushing", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new
+            gitrepo_factory.environment = opts.env
             names = gitrepo_factory.repo_names_get(name: opts.name)
             names.each do |name2|
               # CrystalTools.log "push/commit #{name2}", 1
@@ -120,7 +123,8 @@ module CrystalDo
               "
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new
+            gitrepo_factory.environment = opts.env
             thereponame = opts.name
             if args.url
               r = gitrepo_factory.get(path: opts.dest, url: args.url, branch: opts.branch)
