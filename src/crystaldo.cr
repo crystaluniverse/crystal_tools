@@ -90,6 +90,7 @@ module CrystalDo
           option "-n WORDS", "--name=WORDS", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
           option "-b WORDS", "--branch=WORDS", type: String, desc: "If we need to change the branch for push", default: ""
           option "-m WORDS", "--message=WORDS", type: String, required: false, desc: "message for the commit when pushing", default: ""
+          option "-p", "--pull", type: Bool, desc: "If put will pull first."
 
           run do |opts, args|
             gitrepo_factory = GITRepoFactory.new(environment: opts.env)
@@ -100,7 +101,14 @@ module CrystalDo
               if opts.branch != ""
                 raise "not implemented"
               end
-              r.commit_pull_push(msg: opts.message)
+              if opt.pull
+                r.commit_pull_push(msg: opts.message)
+              else
+                if r.changes
+                  r.commit(msg: opts.message)
+                  r.push()
+                end
+              end
             end
           end
         end
