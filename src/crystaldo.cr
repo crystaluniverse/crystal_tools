@@ -102,6 +102,7 @@ module CrystalDo
                 raise "not implemented"
               end
               if opt.pull
+              puts "pull push"
                 r.commit_pull_push(msg: opts.message)
               else
                 if r.changes
