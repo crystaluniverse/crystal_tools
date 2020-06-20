@@ -5,19 +5,16 @@ module CrystalTools
   class GITRepoFactory
     property codedir : String
     property repos : Hash(String, GITRepo)
-    property repos_path : Hash(String, String)
-    property environment = ""
 
-    # property repos : Hash(String,GITRepo)
-    # reponame's to path
-
-    def initialize
+    def initialize(@environment = "")
       @repos = {} of String => GITRepo
-      @repos_path = {} of String => String
-      @codedir = Path["~/code"].expand(home: true).to_s
+      @codedir = Path["~/code/#{@environment}"].expand(home: true).to_s
       @sshagent_loaded = Executor.exec_ok("ssh-add -l")
+      self.scan
     end
 
+    #go from comma separated names to repo names, or if not specified go to the current dir
+    #if empty and not in .git dir then will return all names known to the factory
     def repo_names_get(name : String)
       names = [] of String
       if name.includes?(',')
@@ -26,45 +23,15 @@ module CrystalTools
         if Dir.exists?("#{Dir.current}/.git")
           path = Dir.current
           name = Path[path].basename
-          names = [name]
+          names = [name]          
         else
-          # find all repo's underneith the path we are in
-          path = Dir.current
-          Dir.glob("#{path}/**/*/.git").each do |p|
-            if !p.downcase.includes?("backup")
-              dirname = File.dirname(p)
-              names << Path[dirname].basename
-            end
-          end
+          names = @repos.keys
         end
       else
         names = [name]
       end
       return names
     end
-
-    # def repo_remember(r : GITRepo)
-    #   redis = RedisFactory.core_get
-    #   key = "crystaltools:git:latestreponame"
-    #   redis.set "crystaltools:git:latestreponame", r.@name
-    # end
-
-    # def repo_get(name  : String = "")
-    #   if name == ""
-    #     redis = RedisFactory.core_get
-    #     key = "crystaltools:git:latestreponame"
-    #     name2 = redis.get "crystaltools:git:latestreponame"
-    #     if name2 == nil
-    #       name = ""
-    #     else
-    #       name = name2.as(String)
-    #     end
-    #   end
-    #   if name == ""
-    #     raise "Cannot find repo, name not specified (or url or path)"
-    #   end
-    #   return get name: name
-    # end
 
     def sshagent_loaded
       @sshagent_loaded
@@ -92,9 +59,7 @@ module CrystalTools
         if @repos.has_key?(nameL)
           return @repos[nameL]
         end
-        if @repos_path.has_key?(nameL)
-          path = @repos_path[nameL]
-        end
+
       end
 
       if path == "" && url == ""
@@ -113,7 +78,7 @@ module CrystalTools
       gr
     end
 
-    private def dir_ignore_check(sub_path)
+    protected def dir_ignore_check(sub_path)
       if File.match?(".*", sub_path)
         return true
       end
@@ -123,47 +88,24 @@ module CrystalTools
     # walk over code directory and find the repo's
     # is done is a very specific way, first provider dirs, then account dirs then repo dirs
     # is fast because only checks the possible locations
-    def scan
+    protected def scan
       @repos_path = {} of String => String
-      d = Dir.open(@codedir)
-      # walk providers
-      d.each do |provider_dir_sub|
-        provider_dir = File.join([@codedir, provider_dir_sub])
-        # CrystalTools.log provider_dir,1
-        if File.directory? provider_dir
-          if !dir_ignore_check(provider_dir_sub)
-            # now walk the accounts
-            d2 = Dir.open(provider_dir)
-            d2.each do |account_dir_sub|
-              account_dir = File.join([provider_dir, account_dir_sub])
-              if File.directory? account_dir
-                if !dir_ignore_check(account_dir_sub)
-                  # now walk the repos
-                  d3 = Dir.open(account_dir)
-                  d3.each do |repo_dir_sub|
-                    repo_dir = File.join([account_dir, repo_dir_sub])
-                    if repo_dir_sub.downcase == "home"
-                      name = account_dir_sub.downcase
-                    else
-                      name = repo_dir_sub.downcase
-                    end
-                    if !dir_ignore_check(repo_dir_sub)
-                      # d4 = Dir.new(repo_dir)
-                      if Dir.exists?("#{repo_dir}/.git")
-                        # CrystalTools.log("  ... #{name}:  #{repo_dir}",4)
-                        if @repos_path[name]? != nil
-                          r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
-                          r2 = GITRepo.new gitrepo_factory: self, path: repo_dir
-                          CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos_path[name]} and #{repo_dir}"
-                        end
-                        @repos_path[name] = repo_dir
-                      end
-                    end
-                  end
-                end
-              end
-            end
+      name = ""
+      Dir.glob("#{@codedir}/**/*/.git").each do |repo_path|
+        #make sure dir's starting with _ are skipped (e.g. can be used for backup)
+        if ! repo_path.includes? "/_"
+          repo_dir = File.dirname(repo_path)
+          name = Path[repo_dir].basename.downcase
+          if name == "home"
+            name = Path[File.dirname(repo_dir)].basename.downcase
           end
+          CrystalTools.log("  ... #{name}:  #{repo_dir}",1)
+          repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
+          if @repos[name]? != nil
+            # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]          
+            CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos[name].path} and #{repo_dir}"
+          end
+          @repos[name] = repo
         end
       end
     end
@@ -321,11 +263,10 @@ module CrystalTools
           CrystalTools.error "Could not parse url from git: \"#{@url}\""
         end
       else
-        CrystalTools.error "url needs to start with to be git or http. #{@url}"
+        CrystalTools.error "url needs to start with to be git or http. #{@url}\nFor #{@path}"
       end
-      CrystalTools.log @path, 2
-      CrystalTools.log "#{path0}", 2
-      CrystalTools.log "#{@url}", 2
+      # CrystalTools.log "#{path0}"
+      CrystalTools.log "#{@url}"
       if @path == ""
         @path = path0
       elsif @path != path0 && path0 != ""

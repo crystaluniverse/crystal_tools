@@ -24,19 +24,7 @@ module CrystalDo
         end
       end
 
-      sub "code" do
-        desc "open code editor (visual studio code)"
-        help short: "-h"
-        usage "ct code NAME"
-        argument "name", type: String, required: false, desc: "name of the repo, if not mentioned is the last one", default: ""
-        option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
-        run do |opts, args|
-          gitrepo_factory = GITRepoFactory.new
-          gitrepo_factory.environment = opts.env
-          r = gitrepo_factory.get(name: args.name)
-          Executor.exec "code '#{r.@path}'"
-        end
-      end
+
 
       # TODO: hamdy, how can we make this more modular, want to put in different files, e.g. per topic e.g. git
       sub "git" do
@@ -55,20 +43,42 @@ module CrystalDo
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new
-            gitrepo_factory.environment = opts.env
-
-            gitrepo_factory.scan
-
-            gitrepo_factory.@repos_path.each do |name2, path|
-              r = gitrepo_factory.get(name: name2)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory.@repos.each do |name2, r|
               if r.changes
-                # TODO: implement, that we can see which repo's changed, goal is to make it easy for people to see which repo's have changes
-                puts "#{r.to_s} has changes."
+                puts " - #{r.name.ljust(30)} : #{r.path} (CHANGED)"
               end
             end
           end
         end
+
+        sub "code" do
+          desc "open code editor (visual studio code)"
+          help short: "-h"
+          usage "ct code [options]"
+          option "-n WORDS", "--name=WORDS", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          run do |opts, args|
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            r = gitrepo_factory.get(name: opts.name)
+            Executor.exec "code '#{r.@path}'"
+          end
+        end        
+
+        sub "list" do
+          help short: "-h"
+          usage "ct git list [options] "
+          desc "list repos"
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+
+          run do |opts, args|
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory.@repos.each do |name,r|
+              puts " - #{r.name.ljust(30)} : #{r.path}"
+            end        
+          end
+        end        
+
 
         sub "push" do
           help short: "-h"
@@ -82,8 +92,7 @@ module CrystalDo
           option "-m WORDS", "--message=WORDS", type: String, required: false, desc: "message for the commit when pushing", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new
-            gitrepo_factory.environment = opts.env
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
             names = gitrepo_factory.repo_names_get(name: opts.name)
             names.each do |name2|
               # CrystalTools.log "push/commit #{name2}", 1
@@ -104,7 +113,8 @@ module CrystalDo
           option "-d WORDS", "--dest=WORDS", type: String, default: "",
             desc: "
               destination if not specified will be
-              ~code/github/$account/$repo/
+              ~code/github/$environment/$account/$repo/   
+              $environment normally empty
               "
 
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
@@ -114,8 +124,7 @@ module CrystalDo
           option "-r WORD", "--reset=WORD", type: Bool, desc: "Will reset the local git, means overwrite whatever changes done.", default: false
           option "--depth=WORD", type: Int32, desc: "Depth of cloning. default all.", default: 0
           option "-m WORDS", "--message=WORDS", type: String, required: false, desc: "message for the commit when pushing", default: ""
-
-          argument "url", type: String, required: false, default: "",
+          option "-u WORD", "--url=WORD", type: String, required: false, default: "",
             desc: "
               pull git repository, if local changes will ask to commit if in interactive mode (default)
               url e.g. https://github.com/at-grandpa/clim
@@ -123,17 +132,16 @@ module CrystalDo
               "
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new
-            gitrepo_factory.environment = opts.env
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
             thereponame = opts.name
-            if args.url
-              r = gitrepo_factory.get(path: opts.dest, url: args.url, branch: opts.branch)
+            if opts.url != ""
+              r = gitrepo_factory.get(path: opts.dest, url: opts.url, branch: opts.branch)
               thereponame = r.name
             end
             names = gitrepo_factory.repo_names_get(name: thereponame)
             names.each do |name2|
               puts "PULL: #{name2}"
-              r = gitrepo_factory.get(name: name2, path: opts.dest, url: args.url, branch: opts.branch)
+              r = gitrepo_factory.get(name: name2, path: opts.dest, url: opts.url, branch: opts.branch)
               if opts.reset
                 r.reset
               else
