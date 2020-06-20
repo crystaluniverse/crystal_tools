@@ -107,6 +107,7 @@ module CrystalDo
               else
                 if r.changes
                   r.commit(msg: opts.message)
+                  r.pull()
                   r.push()
                 end
               end
