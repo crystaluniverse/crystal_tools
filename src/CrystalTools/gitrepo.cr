@@ -145,9 +145,9 @@ module CrystalTools
         url_on_fs = try_read_url_from_path()
         # log url_on_fs
         # give url on fs priority
-        if @url != "" && @url != url_on_fs
-          CrystalTools.error "url mismatch: #{@url} and #{url_on_fs}"
-        end
+        # if @url != "" && @url != url_on_fs
+        #   CrystalTools.error "url mismatch: #{@url} and #{url_on_fs}"
+        # end
         if url_on_fs != ""
           @url = url_on_fs
         end
