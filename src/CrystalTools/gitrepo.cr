@@ -5,6 +5,7 @@ module CrystalTools
   class GITRepoFactory
     property repos : Hash(String, GITRepo)
     property environment : String
+    property interactive = true
 
     def initialize(@environment = "")
       @repos = {} of String => GITRepo
@@ -112,7 +113,6 @@ module CrystalTools
           end
           CrystalTools.log("  ... #{name}:  #{repo_dir}", 1)
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
-          puts "factory env: #{self.environment}, repo path: #{repo_path}, repo dir: #{repo_dir}"
           if @repos[name]? != nil
             # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
             CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos[name].path} and #{repo_dir}"
@@ -284,6 +284,7 @@ module CrystalTools
     def pull(force = false, msg = "")
       CrystalTools.log " - Pull #{@path}", 2
       repo_ensure() # handles the cloning, existence and the correct branch already.
+
       if force
         reset()
       else
@@ -341,13 +342,17 @@ module CrystalTools
     # commit the new info, automatically do an add of all files
     def commit(msg : String)
       repo_ensure()
-      if msg == ""
-        puts "Changes found in repo: #{@path}"
-        puts "please provide message:"
-        msg = read_line.chomp
-      end
-      if changes()
-        Executor.exec("cd #{@path} && git add . -A && git commit -m \"#{msg}\"")
+      if @gitrepo_factory.interactive
+        if msg == ""
+          puts "Changes found in repo: #{@path}"
+          puts "please provide message:"
+          msg = read_line.chomp
+        end
+        if changes()
+          Executor.exec("cd #{@path} && git add . -A && git commit -m \"#{msg}\"")
+        end
+      else
+        CrystalTools.log " - make sure to enable interactive to be able to commit changes in #{@path}", 2
       end
     end
 
