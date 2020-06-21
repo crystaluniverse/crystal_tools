@@ -3,18 +3,29 @@ module CrystalTools
   SSH_REPO_URL  = /git@(?P<provider>.+)(?P<suffix>\..+)\:(?P<account>.+)\/(?P<repo>.+).git/
 
   class GITRepoFactory
-    property codedir : String
     property repos : Hash(String, GITRepo)
+    property environment : String
 
     def initialize(@environment = "")
       @repos = {} of String => GITRepo
-      @codedir = Path["~/code/#{@environment}"].expand(home: true).to_s
       @sshagent_loaded = Executor.exec_ok("ssh-add -l")
       self.scan
     end
 
-    #go from comma separated names to repo names, or if not specified go to the current dir
-    #if empty and not in .git dir then will return all names known to the factory
+    def codedir
+      Path["~/code"].expand(home: true).to_s
+    end
+
+    def envdir
+      if @environment != ""
+        "#{codedir}_#{@environment}"
+      else
+        codedir
+      end
+    end
+
+    # go from comma separated names to repo names, or if not specified go to the current dir
+    # if empty and not in .git dir then will return all names known to the factory
     def repo_names_get(name : String)
       names = [] of String
       if name.includes?(',')
@@ -23,7 +34,7 @@ module CrystalTools
         if Dir.exists?("#{Dir.current}/.git")
           path = Dir.current
           name = Path[path].basename
-          names = [name]          
+          names = [name]
         else
           names = @repos.keys
         end
@@ -59,7 +70,6 @@ module CrystalTools
         if @repos.has_key?(nameL)
           return @repos[nameL]
         end
-
       end
 
       if path == "" && url == ""
@@ -72,7 +82,7 @@ module CrystalTools
         name = Path[path].basename
       end
 
-      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, environment: @environment, depth: depth
+      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth
       repos[nameL] = gr
       gr.repo_ensure
       gr
@@ -91,18 +101,20 @@ module CrystalTools
     protected def scan
       @repos_path = {} of String => String
       name = ""
-      Dir.glob("#{@codedir}/**/*/.git").each do |repo_path|
-        #make sure dir's starting with _ are skipped (e.g. can be used for backup)
-        if ! repo_path.includes? "/_"
+      Dir.glob("#{envdir}/**/*/.git").each do |repo_path|
+        # make sure dir's starting with _ are skipped (e.g. can be used for backup)
+        if !repo_path.includes? "/_"
           repo_dir = File.dirname(repo_path)
+
           name = Path[repo_dir].basename.downcase
           if name == "home"
             name = Path[File.dirname(repo_dir)].basename.downcase
           end
-          CrystalTools.log("  ... #{name}:  #{repo_dir}",1)
+          CrystalTools.log("  ... #{name}:  #{repo_dir}", 1)
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
+          puts "factory env: #{self.environment}, repo path: #{repo_path}, repo dir: #{repo_dir}"
           if @repos[name]? != nil
-            # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]          
+            # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
             CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos[name].path} and #{repo_dir}"
           end
           @repos[name] = repo
@@ -134,7 +146,7 @@ module CrystalTools
       "GitRepo<#{@name} at #{@path}>"
     end
 
-    def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @environment = "", @depth = 0)
+    def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @depth = 0)
       if @path == "" && @url == ""
         error "path and url are empty #{name}"
       end
@@ -211,17 +223,8 @@ module CrystalTools
       "git@#{@provider}#{@provider_suffix}:#{@account}/#{@name}.git"
     end
 
-    def base_dir
-      if @environment != ""
-        base_dir = "#{@gitrepo_factory.codedir}/#{@environment}/"
-      else
-        base_dir = "#{@gitrepo_factory.codedir}/"
-      end
-      base_dir
-    end
-
     private def dir_account_ensure
-      path0 = Path["#{base_dir}/#{@provider}/#{@account}"].expand(home: true)
+      path0 = Path["#{gitrepo_factory.envdir}/#{@provider}/#{@account}"].expand(home: true)
       unless Dir.exists?(path0.to_s)
         CrystalTools.log "create path: #{path0.to_s}", 3
         Dir.mkdir_p(path0)
