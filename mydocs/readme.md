@@ -1,4 +1,4 @@
 - [git](git.md)
 - [process management (tmux)](tmux.md)
-- [task mgmt (do)](do/do.md)
+- [task mgmt (do)](do/readme.md)
 - [debug](debug.md)
