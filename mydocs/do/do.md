@@ -1,9 +1,11 @@
 # do
 
+> do is nothing more than neph bundled in, all credits to: https://github.com/tbrand/neph
+
 a very nice way how to execute lots of commands in parallel
 
 ```bash
-export MYDIR=`ct git path -u https://github.com/crystaluniverse/crystaltools` && cd $MYDIR/examples && ./do.sh
+cd `ct git path -u https://github.com/crystaluniverse/crystaltools`/examples && ./sleep.sh
 
 Neph is running (0.2.12) ||||||||||||||||||||||||||||||||||||||||||||||||||100%
 main [7/7] done.   806.73ms
@@ -16,6 +18,17 @@ main [7/7] done.   806.73ms
 
 Finished in 3.89s
 ```
+
+or 
+
+```bash
+cd `ct git path -u https://github.com/crystaluniverse/crystaltools`/examples && ct do exec neph.yaml && echo "***DONE***"
+
+```
+
+see how we used the cd trick to find this dir to work on 
+
+the logs are in .neph inside the location where you started do exec from...
 
 
 
