@@ -1,0 +1,6 @@
+.git
+(?d).DS_Store
+/tmp/
+/bin/
+/lib/
+

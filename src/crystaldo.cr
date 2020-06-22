@@ -4,6 +4,8 @@ require "./gittrigger"
 require "neph"
 
 module CrystalDo
+
+
   class Cli < Clim
     include CrystalTools
 
@@ -324,9 +326,21 @@ module CrystalDo
           usage "ct gittrigger start"
           desc "start git trigger server"
           run do |opts, args|
+            
             GitTrigger.start
           end
         end
+
+        sub "subscribe" do
+          help short: "-h"
+          usage "ct gittrigger subscribe"
+          desc "subscribe to remote server"
+          run do |opts, args|
+            #TODO: put opts in for remote addr
+            GitTrigger.subscribe
+          end
+        end
+
       end
     end
   end
