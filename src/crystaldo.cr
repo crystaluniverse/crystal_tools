@@ -35,15 +35,18 @@ module CrystalDo
           puts opts.help_string
         end
 
+        
+
         sub "changes" do
           help short: "-h"
           usage "ct git check [options] "
           desc "check which repo's have changes"
 
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
             gitrepo_factory.@repos.each do |name2, r|
               if r.changes
                 puts " - #{r.name.ljust(30)} : #{r.path} (CHANGED)"
@@ -58,8 +61,10 @@ module CrystalDo
           usage "ct code [options]"
           option "-n WORDS", "--name=WORDS", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          argument "path", type: String, desc: "path to start from", default: ""
+
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
             r = gitrepo_factory.get(name: opts.name)
             Executor.exec "code '#{r.@path}'"
           end
@@ -70,9 +75,10 @@ module CrystalDo
           usage "ct git list [options] "
           desc "list repos"
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
             gitrepo_factory.@repos.each do |name,r|
               puts " - #{r.name.ljust(30)} : #{r.path}"
             end        
@@ -91,9 +97,10 @@ module CrystalDo
           option "-b WORDS", "--branch=WORDS", type: String, desc: "If we need to change the branch for push", default: ""
           option "-m WORDS", "--message=WORDS", type: String, required: false, desc: "message for the commit when pushing", default: ""
           option "-p", "--pull", type: Bool, desc: "If put will pull first."
+          argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
             names = gitrepo_factory.repo_names_get(name: opts.name)
             names.each do |name2|
               # CrystalTools.log "push/commit #{name2}", 1
@@ -140,9 +147,10 @@ module CrystalDo
               url e.g. https://github.com/at-grandpa/clim
               url e.g. git@github.com:at-grandpa/clim.git
               "
+          argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
             thereponame = opts.name
             if opts.url != ""
               r = gitrepo_factory.get(path: opts.dest, url: opts.url, branch: opts.branch)

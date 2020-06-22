@@ -5,24 +5,25 @@ module CrystalTools
   class GITRepoFactory
     property repos : Hash(String, GITRepo)
     property environment : String
+    property path_find : String
+    property path_code : String
     property interactive = true
 
-    def initialize(@environment = "")
+    def initialize(@environment = "", path = "")
       @repos = {} of String => GITRepo
       @sshagent_loaded = Executor.exec_ok("ssh-add -l")
-      self.scan
-    end
-
-    def codedir
-      Path["~/code"].expand(home: true).to_s
-    end
-
-    def envdir
-      if @environment != ""
-        "#{codedir}_#{@environment}"
+      if path == "."
+        @path_find = Dir.current
+      elsif path == ""
+        @path_find = Path["~/code"].expand(home: true).to_s
       else
-        codedir
+        @path_find = path
       end
+      @path_code = Path["~/code"].expand(home: true).to_s
+      if @environment != ""
+        @path_code = "#{@path_code}_#{@environment}"
+      end      
+      self.scan
     end
 
     # go from comma separated names to repo names, or if not specified go to the current dir
@@ -85,7 +86,7 @@ module CrystalTools
 
       gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth
       repos[nameL] = gr
-      gr.repo_ensure
+      gr.ensure
       gr
     end
 
@@ -102,7 +103,7 @@ module CrystalTools
     protected def scan
       @repos_path = {} of String => String
       name = ""
-      Dir.glob("#{envdir}/**/*/.git").each do |repo_path|
+      Dir.glob("#{@path_find}/**/*/.git").each do |repo_path|
         # make sure dir's starting with _ are skipped (e.g. can be used for backup)
         if !repo_path.includes? "/_"
           repo_dir = File.dirname(repo_path)
@@ -224,7 +225,7 @@ module CrystalTools
     end
 
     private def dir_account_ensure
-      path0 = Path["#{gitrepo_factory.envdir}/#{@provider}/#{@account}"].expand(home: true)
+      path0 = Path["#{gitrepo_factory.path_code}/#{@provider}/#{@account}"].expand(home: true)
       unless Dir.exists?(path0.to_s)
         CrystalTools.log "create path: #{path0.to_s}", 3
         Dir.mkdir_p(path0)
@@ -281,15 +282,19 @@ module CrystalTools
     # clone if directory is not there
     # if there is data in there, ask to commit, ask message if @autocommit is on
     # if branchname specified, check branchname is the same, if not and @branchswitch is True switch branch, otherwise error
-    def pull(force = false, msg = "")
+    def pull(force = false, msg = "", interactive = true)
       CrystalTools.log " - Pull #{@path}", 2
-      repo_ensure() # handles the cloning, existence and the correct branch already.
+      ensure() # handles the cloning, existence and the correct branch already.
 
       if force
         reset()
       else
         if changes()
-          commit msg
+          if msg != "" || interactive
+            commit msg
+          else
+            raise "cannot commit if msg not given and interactive is false"
+          end
         end
         Executor.exec("cd #{@path} && git pull")
       end
@@ -299,7 +304,7 @@ module CrystalTools
     # will then reset to right branch & pull all changes
     # DANGEROUS: local changes will be overwritten
     def reset
-      repo_ensure()
+      ensure()
       `cd #{@path} && git clean -xfd && git checkout . && git checkout #{branch} && git pull`
       if !$?.success?
         raise "could not reset repo: #{@path}"
@@ -307,7 +312,7 @@ module CrystalTools
     end
 
     # make sure the repository exists, if not will pull
-    def repo_ensure
+    def ensure
       unless Dir.exists?(@path)
         account_dir = dir_account_ensure()
         if account_dir != ""
@@ -341,7 +346,7 @@ module CrystalTools
 
     # commit the new info, automatically do an add of all files
     def commit(msg : String)
-      repo_ensure()
+      ensure()
       if @gitrepo_factory.interactive
         if msg == ""
           puts "Changes found in repo: #{@path}"
@@ -370,7 +375,7 @@ module CrystalTools
     # commit, pull, push
     def commit_pull_push(msg : String)
       # CrystalTools.log " - Pull/Push/Commit #{@path} : #{msg}", 2
-      repo_ensure()
+      ensure()
       # CrystalTools.log msg,3
       pull(msg: msg)
       push()
@@ -378,7 +383,7 @@ module CrystalTools
 
     def push
       CrystalTools.log " - Push #{@path}", 2
-      repo_ensure()
+      ensure()
       Executor.exec("cd #{@path} && git push")
     end
   end
