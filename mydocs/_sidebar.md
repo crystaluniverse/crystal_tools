@@ -1,1 +1,3 @@
 - [git](git.md)
+- [process management (tmux)](tmux.md)
+- [debug](debug.md)

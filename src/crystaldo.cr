@@ -1,6 +1,7 @@
 require "clim"
 require "./crystaltools"
 require "./gittrigger"
+require "neph"
 
 module CrystalDo
   class Cli < Clim
@@ -35,14 +36,32 @@ module CrystalDo
           puts opts.help_string
         end
 
+
+        sub "path" do
+          usage "ct git path [options] "
+          desc "ideal to use as follows export MYDIR=`ct git path -n threefoldfoundation`"
+          option "-u WORD", "--url=WORD", type: String, required: false, default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production", default: ""
+          option "-n WORD", "--name=WORD", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
+
+          run do |opts, args|
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+            thereponame = opts.name
+            if opts.url != ""
+              r = gitrepo_factory.get(url: opts.url)
+              thereponame = r.name              
+            end
+            r = gitrepo_factory.get(name: thereponame)
+            puts r.path
+          end          
         
+        end
 
         sub "changes" do
           help short: "-h"
           usage "ct git changes [options] "
           desc "check which repos have changes"
-
-          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
           argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
@@ -60,7 +79,8 @@ module CrystalDo
           help short: "-h"
           usage "ct code [options]"
           option "-n WORDS", "--name=WORDS", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
-          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
           argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
@@ -74,7 +94,7 @@ module CrystalDo
           help short: "-h"
           usage "ct git list [options] "
           desc "list repos"
-          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
           argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
@@ -91,7 +111,7 @@ module CrystalDo
           usage "ct git push [options] "
           desc "commit changes & push to git repository"
 
-          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
           option "-v", "--verbose", type: Bool, desc: "Verbose."
           option "-n WORDS", "--name=WORDS", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
           option "-b WORDS", "--branch=WORDS", type: String, desc: "If we need to change the branch for push", default: ""
@@ -134,7 +154,7 @@ module CrystalDo
               $environment normally empty
               "
 
-          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
           option "-v", "--verbose", type: Bool, desc: "Verbose."
           option "-n WORD", "--name=WORD", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
           option "-b WORD", "--branch=WORD", type: String, desc: "Branch of the repo, not needed to specify", default: ""
@@ -215,18 +235,23 @@ module CrystalDo
 
         sub "run" do
           help short: "-h"
-          usage "ct tmux run cmd [options] "
+          usage "ct tmux run cmd [options] [args] "
           desc "run a command in a window in a tmux session"
           option "-n WORDS", "--name=WORDS", type: String, desc: "Name of session", default: "default"
           option "-w WORDS", "--window=WORDS", type: String, desc: "Name of window", default: "default"
-          option "-r", "--reset", type: Bool, desc: "Kill the window first", default: true
+          option "-nr", "--noreset", type: Bool, desc: "If true then will not reset the window when it exists already", default: false
           option "-c WORDS", "--check=WORDS", type: String, desc: "Check to do, look for string in output of window.", default: ""
           argument "cmd", type: String, required: true, desc: "command to execute in the window"
 
           run do |opts, args|
             session = TMUXFactory.session_get(name: opts.name)
+            if opts.noreset == true
+              reset = false
+            else
+              reset = true
+            end
             window = session.window_get(name: opts.window)
-            window.execute cmd: args.cmd, check: opts.check, reset: opts.reset
+            window.execute cmd: args.cmd, check: opts.check, reset: reset
           end
         end
       end
@@ -252,18 +277,18 @@ module CrystalDo
         end
       end
 
-      sub "neph" do
+      sub "do" do
         help short: "-h"
-        desc "work with neph"
-        usage "ct neph [cmd] [options]"
+        desc "work with task executor"
+        usage "ct do [cmd] [options]"
         run do |opts, args|
           puts opts.help_string
         end
 
         sub "exec" do
           help short: "-h"
-          usage "ct neph exec [options]"
-          desc "execute jobs using neph"
+          usage "ct do exec [options]"
+          desc "execute jobs using neph (parallel task manager)"
 
           option "-l WORD", "--log-mode=WORD", type: String, desc: "Log modes [NORMAL/CI/QUIET/AUTO]", default: "AUTO"
           option "-e WORD", "--exec-mode=WORD", type: String, desc: "Execution modes [parallel/sequential]", default: "parallel"
@@ -277,7 +302,7 @@ module CrystalDo
 
         sub "clean" do
           help short: "-h"
-          usage "ct neph clean"
+          usage "ct do clean"
           desc "cleaning caches"
           run do |opts, args|
             neph = NephExecuter.new
@@ -296,7 +321,7 @@ module CrystalDo
 
         sub "start" do
           help short: "-h"
-          usage "ct neph start"
+          usage "ct gittrigger start"
           desc "start git trigger server"
           run do |opts, args|
             GitTrigger.start
