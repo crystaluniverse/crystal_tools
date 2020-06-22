@@ -39,8 +39,8 @@ module CrystalDo
 
         sub "changes" do
           help short: "-h"
-          usage "ct git check [options] "
-          desc "check which repo's have changes"
+          usage "ct git changes [options] "
+          desc "check which repos have changes"
 
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production, is a prefix to github dir in code.", default: ""
           argument "path", type: String, desc: "path to start from", default: ""
