@@ -139,6 +139,8 @@ module CrystalTools
 
   end
 
+  # how to use
+  #   RedisFactory.core_get
   class RedisFactory
     # property sessions : Hash(String, CrystalTools::RedisClient)
     @@sessions = {} of String => RedisClient
@@ -159,24 +161,29 @@ module CrystalTools
 
     # start redis server if not done yet
     def self.core_get
-      if !Executor.cmd_exists_check "redis-cli"
-        if Executor.platform == "osx"
-          Executor.exec "brew unlink redis", die = false
-          Executor.exec "brew install redis"
-          Executor.exec "brew link redis"
-        else
-          Executor.package_install "redis-server "
-        end
-      end
 
-      if !core_exists
-        CrystalTools.log "core redis does not exist yet", 2
-        # test redis exists
-        if Executor.platform == "osx"
-          Executor.exec "sysctl vm.overcommit_memory=1"
+      if !@@sessions.has_key?("core")
+
+        if !Executor.cmd_exists_check "redis-cli"
+          if Executor.platform == "osx"
+            Executor.exec "brew unlink redis", die = false
+            Executor.exec "brew install redis"
+            Executor.exec "brew link redis"
+          else
+            Executor.package_install "redis-server "
+          end
         end
-        Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
-        sleep 0.1
+
+        if !core_exists
+          CrystalTools.log "core redis does not exist yet", 2
+          # test redis exists
+          if Executor.platform == "osx"
+            Executor.exec "sysctl vm.overcommit_memory=1"
+          end
+          Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
+          sleep 0.1
+        end
+
       end
 
       client_get "core"

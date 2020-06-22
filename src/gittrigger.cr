@@ -4,7 +4,10 @@ require "http/client"
 require "./crystaltools"
 
 module GitTrigger
+  include CrystalTools
+
   @@jobs = {} of String => Array(String)
+  # @@redis = RedisFactory.core_get of RedisClient
 
   def self.get_neph_script(repo_name : String)
     response = HTTP::Client.get "https://raw.githubusercontent.com/#{repo_name}/master/.neph.yml"
@@ -41,6 +44,12 @@ module GitTrigger
     payload = body["repository"].as(Hash)
     repo_name = payload["full_name"].to_s
     script = self.get_neph_script repo_name
+
+    # pp payload["clone_url"]
+    
+    puts "\n\n\n"
+    CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
+    CrystalTools.log "Trigger: script: #{script}", 2
 
     unless script
       next

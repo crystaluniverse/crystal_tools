@@ -12,6 +12,7 @@
 /tmp/
 /bin/
 /lib/
+crystaldo*
 
 # Used by dotenv library to load environment variables.
 # .env
