@@ -320,7 +320,7 @@ module CrystalTools
           if @depth != 0
             Executor.exec("cd #{account_dir} && git clone -b #{@branch} #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
           else
-            Executor.exec("cd #{account_dir} && git clone -b #{branch} #{@url}")
+            Executor.exec("cd #{account_dir} && git clone -b #{@branch} #{@url}")
           end
           pull()
           return File.join(account_dir, @name)
