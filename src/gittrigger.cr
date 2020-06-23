@@ -16,7 +16,9 @@ module GitTrigger
   
   @@jobs = {} of String => Array(String)
     
-  def self.process_changes(serverurl : String = "")
+  def self.process_changes(repourl : String = "")
+    CrystalTools.log "Processing jobs for: repo: #{repourl}", 2
+
     #get last_change id in your local redis , if unknown its 0
     #do http get request to the server (/github/changes)
     # now I get a dict with changed github repos, we get the urls
@@ -40,7 +42,9 @@ module GitTrigger
 
   def self.ensure_repos
     self.get_config.each do |repo|
-      GIT.get url: "github.com/#{repo.as(Hash)["url"]}"
+      repo = repo.as(Hash)
+      GIT.get url: "github.com/#{repo["url"]}"
+      self.add_job repo["url"].as(String)
     end
   end
   
@@ -50,7 +54,25 @@ module GitTrigger
     Kemal.run
   end
 
-  def self.get_neph_script(name : String)
+  def self.add_job(repurl : String)
+    path = "#{GIT.path_code}/github/#{repurl}/.crystaldo"
+    if File.exists?("#{path}/main.yaml")
+      path = "#{path}/main.yaml"
+    elsif File.exists?("#{path}/main.yml")
+      path = "#{path}/main.yml"
+    else
+      return
+    end
+
+    script = File.read(path)
+    if @@jobs.has_key?(repurl)
+      @@jobs[repurl] << script
+    else
+      @@jobs[repurl] = Array{script}
+    end
+    CrystalTools.log "Trigger: repo_name: #{repurl}", 2
+    CrystalTools.log "Trigger: script: #{script}", 2
+    spawn self.process_changes repurl
 
   end
 
@@ -58,8 +80,6 @@ module GitTrigger
     #every minute call self.process_changes...
 
   end
-
-
 
 
   get "/github" do |context|
@@ -92,7 +112,6 @@ module GitTrigger
     url = payload["html_url"].to_s
     last_commit = body["head_commit"].as(Hash)["id"].to_s
     timestamp = payload["pushed_at"].to_s
-    
 
     tid = REDIS.incr("gittrigger:changes:#{repo_name}:id").to_i32
     # REDIS.lpush("gittrigger:repos:#{repo_name}", {
@@ -105,22 +124,6 @@ module GitTrigger
     
     puts "\n\n\n"
     CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
-    
-    script = self.get_neph_script repo_name
-    CrystalTools.log "Trigger: script: #{script}", 2
-
-    unless script
-      next
-    end
-
-    # if @@jobs.has_key?(repo_name)
-    #   @@jobs[repo_name] << script
-    # else
-    #   @@jobs[repo_name] = Array{script}
-    # end
-
-    # if @@jobs[repo_name].size == 1
-    #   spawn self.process_changes repo_name
-    # end
+    self.add_job url 
   end
 end
