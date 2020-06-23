@@ -2,18 +2,19 @@ require "kemal"
 require "json"
 require "http/client"
 require "./crystaltools"
+require "openssl"
+require "openssl/hmac"
 
 module GitTrigger
   include CrystalTools
 
-  REDIS = RedisFactory.core_get
+  REDIS = RedisFactory.client_get "gittriggers"
   GIT = GITRepoFactory.new
 
   
-  @@jobs = {} of String => Array(String)
-  #TODO: how to have a redis client without having to re-initialize
-  # @@redis = RedisFactory.core_get of RedisClient
   
+  @@jobs = {} of String => Array(String)
+    
   def self.process_changes(serverurl : String = "")
     #get last_change id in your local redis , if unknown its 0
     #do http get request to the server (/github/changes)
@@ -30,9 +31,13 @@ module GitTrigger
 
   end
 
-  def self.start
+  def self.start(@@secret : String)
     Kemal.config.port = 8080
     Kemal.run
+  end
+
+  def self.get_neph_script(name : String)
+
   end
 
   def self.subscribe(serverurl : String = "")
@@ -44,39 +49,64 @@ module GitTrigger
 
 
   get "/github" do |context|
-    #TODO: changeid is given 
-    #TODO: return a dict key:repo_name, value:[full_url, commit_hash, epoch]  as json
+    if !context.params.query.has_key?("repo_name") || !context.params.query.has_key?("last_change")
+      halt context, status_code: 404, response: "Not Found"
+    end
+
+    repo_name = context.params.query["repo_name"]
+    last_change_id = context.params.query["last_change"].to_i32
+    
+    changes = REDIS.hmget("gittrigger:changes:#{repo_name}", "url", "last_commit", "timestamp", "id" )
+    
+    if changes.includes?(nil)
+      halt context, status_code: 404, response: "Not Found"
+    end
+    if changes[3].as(String).to_i32 <= last_change_id
+      halt context, status_code: 204, response: ""
+    end
+
+    {"url" => changes[0], "last_commit": changes[1], "timestamp": changes[2], "id": changes[3]}.to_json
   end
 
   post "/github" do |context|
     body = context.params.json
+    signature = "sha1=" + OpenSSL::HMAC.hexdigest(:sha1, @@secret.not_nil!, body.to_json)
+    githubsig= context.request.headers["X-Hub-Signature"]
+    
     payload = body["repository"].as(Hash)
     repo_name = payload["full_name"].to_s
-    # script = self.get_neph_script repo_name
+    url = payload["html_url"].to_s
+    last_commit = body["head_commit"].as(Hash)["id"].to_s
+    timestamp = payload["pushed_at"].to_s
+    
 
-    REDIS
-    #incr: on gittrigger:latest
-    #hset: on key=id_incr  (on gittrigger:changes), the value is [repo_name, full_url, commit_hash, epoch]  
-
-    #TODO: the url to use to clone from, register in redis
-    # pp payload["clone_url"] 
+    tid = REDIS.incr("gittrigger:changes:#{repo_name}:id").to_i32
+    # REDIS.lpush("gittrigger:repos:#{repo_name}", {
+    REDIS.hmset("gittrigger:changes:#{repo_name}", {
+      "url" => url,
+       "last_commit": last_commit,
+        "timestamp": timestamp,
+        "id": tid
+      })
     
     puts "\n\n\n"
     CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
+    
+    script = self.get_neph_script repo_name
     CrystalTools.log "Trigger: script: #{script}", 2
 
     unless script
       next
     end
 
-    if @@jobs.has_key?(repo_name)
-      @@jobs[repo_name] << script
-    else
-      @@jobs[repo_name] = Array{script}
-    end
+    # if @@jobs.has_key?(repo_name)
+    #   @@jobs[repo_name] << script
+    # else
+    #   @@jobs[repo_name] = Array{script}
+    # end
 
-    if @@jobs[repo_name].size == 1
-      spawn self.process repo_name
-    end
+    # if @@jobs[repo_name].size == 1
+    #   spawn self.process_changes repo_name
+    # end
   end
 end

@@ -325,9 +325,10 @@ module CrystalDo
           help short: "-h"
           usage "ct gittrigger start"
           desc "start git trigger server"
+          argument "secret", type: String, desc: "Web hook secret", required: true
           run do |opts, args|
             
-            GitTrigger.start
+            GitTrigger.start args.secret
           end
         end
 
