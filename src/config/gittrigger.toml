@@ -1,11 +1,12 @@
 ["gittriggers"]
   slaves = [""]
-  repos_path = "~/.crystaltools/repos"
 
-["repos.jumpscale"]
+[["repos"]]
+  name = "jumpscale"
   url = ""
   pull_interval = 300
 
-["repos.bcdb"]
+[["repos"]]
+  name = "bcdb"
   url = ""
   pull_interval = 300
