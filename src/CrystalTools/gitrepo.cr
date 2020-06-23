@@ -305,7 +305,7 @@ module CrystalTools
     # DANGEROUS: local changes will be overwritten
     def reset
       ensure()
-      `cd #{@path} && git clean -xfd && git checkout . && git checkout #{branch} && git pull`
+      `cd #{@path} && git clean -xfd && git checkout . && git checkout #{@branch} && git pull`
       if !$?.success?
         raise "could not reset repo: #{@path}"
       end
@@ -318,9 +318,9 @@ module CrystalTools
         if account_dir != ""
           CrystalTools.log "cloning into #{@path} (dir did not exist)"
           if @depth != 0
-            Executor.exec("cd #{account_dir} && git clone #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
+            Executor.exec("cd #{account_dir} && git clone -b #{@branch} #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
           else
-            Executor.exec("cd #{account_dir} && git clone #{@url}")
+            Executor.exec("cd #{account_dir} && git clone -b #{branch} #{@url}")
           end
           pull()
           return File.join(account_dir, @name)
