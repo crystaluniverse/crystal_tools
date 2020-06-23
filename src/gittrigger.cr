@@ -4,6 +4,7 @@ require "http/client"
 require "./crystaltools"
 require "openssl"
 require "openssl/hmac"
+require "toml"
 
 module GitTrigger
   include CrystalTools
@@ -31,7 +32,20 @@ module GitTrigger
 
   end
 
-  def self.start(@@secret : String)
+  def self.get_config
+    configfile = File.read("#{__DIR__}/../src/config/gittrigger.toml")
+    config = TOML.parse(configfile).as(Hash)
+    return config["repos"].as(Array)
+  end
+
+  def self.ensure_repos
+    self.get_config.each do |repo|
+      GIT.get url: "github.com/#{repo.as(Hash)["url"]}"
+    end
+  end
+  
+  def self.start
+    self.ensure_repos
     Kemal.config.port = 8080
     Kemal.run
   end
@@ -70,8 +84,8 @@ module GitTrigger
 
   post "/github" do |context|
     body = context.params.json
-    signature = "sha1=" + OpenSSL::HMAC.hexdigest(:sha1, @@secret.not_nil!, body.to_json)
-    githubsig= context.request.headers["X-Hub-Signature"]
+    # signature = "sha1=" + OpenSSL::HMAC.hexdigest(:sha1, @@secret.not_nil!, body.to_json)
+    # githubsig= context.request.headers["X-Hub-Signature"]
     
     payload = body["repository"].as(Hash)
     repo_name = payload["full_name"].to_s
