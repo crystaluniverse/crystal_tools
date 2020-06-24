@@ -6,17 +6,72 @@ require "openssl"
 require "openssl/hmac"
 require "toml"
 require "neph"
+require "./gittrigger/models"
 
 module GitTrigger
   include CrystalTools
-
+  
   REDIS = RedisFactory.client_get "gittriggers"
   GIT = GITRepoFactory.new
-
   
   
+  @@config : GitTriggerConfig = self.load_config
   @@jobs = {} of String => Array(String)
+  
+  # Read config file into class property
+  def self.load_config
+    configfile = File.read("#{__DIR__}/gittrigger/config/gittrigger.toml")
+    config = TOML.parse(configfile).as(Hash)
+
+    server = config["server"].as(Hash)
+    repos = config["repos"].as(Array)
+
+    config_obj = GitTriggerConfig.new
+    config_obj.port = server["port"].as(Int64)
     
+    server["slaves"].as(Array).each do |slave|
+      config_obj.slaves << slave.as(String)
+    end
+
+    repos.each do |repo|
+      repo = repo.as(Hash)
+      rc = RepoConfig.new
+      rc.name = repo["name"].as(String)
+      rc.url = repo["url"].as(String)
+      rc.pull_interval = repo["pull_interval"].as(Int64)
+      config_obj.repos << rc
+    end
+    puts config_obj
+    return config_obj
+  end
+
+  # called by ct gittrigger reload command
+  def self.reload
+    res = HTTP::Client.post(
+      "http://127.0.0.1:#{@@config.port}/config/reload",
+      headers: HTTP::Headers{"content_type" => "application/json"}
+    )
+
+    if res.status_code == 200
+      CrystalTools.log "Config reloaded", 2
+    else
+      CrystalTools.log "Config reload failure", 5
+    end
+  end
+  
+  # ensure repos are up2date
+  def self.ensure_repos
+    reponames = [] of String
+    @@config.repos.each do |repo|
+      GIT.get url: "github.com/#{repo.url}"
+      reponame = repo.url
+      reponames << reponame
+      self.add_job reponame
+    end
+    REDIS.lpush("gittrigger:reponames", reponames)
+    return reponames
+  end
+  
   def self.process_changes(serverurl : String = "")
     # CrystalTools.log "Processing jobs for: repo: #{repourl}", 2
 
@@ -48,28 +103,10 @@ module GitTrigger
 
   end
 
-  def self.get_config
-    configfile = File.read("#{__DIR__}/../src/config/gittrigger.toml")
-    config = TOML.parse(configfile).as(Hash)
-    return config["repos"].as(Array)
-  end
-
-  def self.ensure_repos
-    reponames = [] of String
-    self.get_config.each do |repo|
-      repo = repo.as(Hash)
-      GIT.get url: "github.com/#{repo["url"]}"
-      reponame = repo["url"].as(String)
-      reponames << reponame
-      self.add_job reponame
-    end
-    REDIS.lpush("gittrigger:reponames", reponames)
-    return reponames
-  end
   
   def self.start
     self.process_changes ""
-    Kemal.config.port = 8080
+    Kemal.config.port = @@config.port.to_i32
     Kemal.run
   end
 
@@ -147,5 +184,11 @@ module GitTrigger
     puts "\n\n\n"
     CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
     self.add_job url 
+  end
+
+   # Reload config
+  post "/config/reload" do |context|
+    @@config = self.load_config
+    CrystalTools.log "Config Reloaded: #{@@config}", 2
   end
 end

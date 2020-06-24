@@ -1,0 +1,13 @@
+["server"]
+  slaves = [""]
+  port = 8080
+
+[["repos"]]
+  name = "test"
+  url = "hamdy/test"
+  pull_interval = 300
+
+[["repos"]]
+  name = "example_trigger"
+  url = "threefoldtech/example_trigger"
+  pull_interval = 300

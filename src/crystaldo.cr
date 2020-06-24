@@ -331,6 +331,15 @@ module CrystalDo
           end
         end
 
+        sub "reload" do
+          help short: "-h"
+          usage "ct gittrigger reload"
+          desc "reload git trigger server"
+          run do |opts, args|
+            GitTrigger.reload
+          end
+        end
+
         sub "subscribe" do
           help short: "-h"
           usage "ct gittrigger subscribe"
