@@ -14,8 +14,13 @@ module GitTrigger
   REDIS = RedisFactory.client_get "gittriggers"
   GIT = GITRepoFactory.new
   
-  
+  # config object (updated automatically when user use `ct gittrigger reload` command)
   @@config : GitTriggerConfig = self.load_config
+
+  # Dictionary of repo_url and list of neph files that need to be executed
+  # this class variable is being monitoed by background fiber that executes whatever
+  # comes there! and remove it from the stack!
+  # (executor) is responsible for this
   @@jobs = {} of String => Array(String)
   
   # Read config file into @@config
@@ -35,6 +40,8 @@ module GitTrigger
       config_obj.slaves << slave.as(String)
     end
 
+    config_obj.id = server["id"].as(String)
+
     repos.each do |repo|
       repo = repo.as(Hash)
       rc = RepoConfig.new
@@ -47,10 +54,38 @@ module GitTrigger
     return config_obj
   end
 
+  # Add subscriber to @@config
+  # re-write the configuration file so when server restarts, subscribers can be there
+  def self.add_subscriber(server_url : String)
+    if @@config.slaves.index(server_url).nil?
+      @@config.slaves.as(Array) << server_url
+      
+      CrystalTools.log " - [GitTrigger Server] :: Subscribers list updated with #{server_url}", 2
+      
+      configfile_path = "#{__DIR__}/gittrigger/config/gittrigger.toml"
+      configfile = File.read(configfile_path)
+
+      # Re-write configuration file with new values for future use
+      io = IO::Memory.new
+      configfile.split("\n").each do |line|
+        if line.includes?("slaves")
+          start = line.index("slaves")
+          last = line.size - 1
+          io << line.sub(start..last, "slaves = #{@@config.slaves.to_s}")
+        else
+          io << line
+        end
+        io << "\n"
+      end
+      File.write(configfile_path, io.to_s)
+      CrystalTools.log " - [GitTrigger Server] :: Configuration file updated on disk successfuly", 2
+    end
+  end
+
   # Fiber:: monitoring a repo
   # Pull each time interval
   # update loacal redis if there's any changes
-  # schedule neph tasks if there's any updates
+  # schedule neph tasks if there's any updates; ile append then to @@jobs[repo_url]
   # need a way to update or terminate if not valid any more, i.e repo removed from config
   def self.monitor_repo(repo_url)
     spawn do
@@ -62,6 +97,8 @@ module GitTrigger
           repo_urls << repo.url
         end
         # make sure repo should be monitored, and get current time interval
+        # if repo is no more there in config file, exit this fiber
+        # if time interval for pulling changed, we use the new updated time
         index = repo_urls.index(repo_url)
         if index.nil?
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
@@ -110,6 +147,9 @@ module GitTrigger
   end
 
   # find neph file in the repo path, add to scheduled jobs if exists
+  # this function is called, if there's a change in a repo
+  # then we need to get the neph_file for that repo
+  # and schedule it to be executed
   def self.schedule_job(repo_url : String)
     path = "#{GIT.path_code}/github/#{repo_url}/.crystaldo"
     if File.exists?("#{path}/main.yaml")
@@ -127,12 +167,15 @@ module GitTrigger
     end
   end
 
+  # spawns fibers per repo, to check if it's updated
+  # repos come from config file
   def self.monitor
     @@config.repos.each do |repo|
       self.monitor_repo repo.url
     end
   end
 
+  # executes neph files in @@jobs for each repo
   def self.executor
     CrystalTools.log " - [GitTrigger Server] :: Job Executor Starting", 2
     spawn do
@@ -151,7 +194,10 @@ module GitTrigger
     end
   end
   
-  # called by ct gittrigger reload command
+  # called by `ct gittrigger reload` command
+  # it calls the local gittrigger instance via http
+  # coz the ct gittrigger reload runs in another process
+  # so it asks the local instance to reload config file
   def self.reload
     res = HTTP::Client.post(
       "http://127.0.0.1:#{@@config.port}/config/reload",
@@ -159,19 +205,29 @@ module GitTrigger
     )
 
     if res.status_code != 200
-      CrystalTools.log " - [GitTrigger Server] :: Configuration reloaded failure", 5
+      CrystalTools.log " - [GitTrigger Server] :: Configuration reloaded failure", 3
     end
   end
   
+  # called by `ct gittrigger subscribe {server_url}` command
+  def self.subscribe(server_url : String = "")
+    res = HTTP::Client.post(
+      "#{server_url}/subscriptions",
+      headers: HTTP::Headers{"content_type" => "application/json"},
+      body: {"subscriber" => @@config.id}.to_json
+    )
+
+    if res.status_code != 200
+      CrystalTools.log " - [GitTrigger Server] :: Subscription failure. failed to add #{server_url}", 3
+    end
+  end
+
   def self.start
     self.monitor
     self.executor
     Kemal.config.port = @@config.port.to_i32
     Kemal.run
   end
-
-  def self.subscribe(serverurl : String = "");end
-
 
   get "/github" do |context|
     if !context.params.query.has_key?("repo_name") || !context.params.query.has_key?("last_change")
@@ -217,8 +273,19 @@ module GitTrigger
     CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
   end
 
-   # Reload config
+  # Reload config
   post "/config/reload" do |context|
     @@config = self.load_config
+  end
+
+  # subscriptions set
+  post "/subscriptions" do |context|
+    if !context.params.json.has_key?("subscriber")
+      halt context, status_code: 409, response: "Bad Request"
+    end
+    puts "here"
+      puts context.params.json["subscriber"]
+      puts "ss"
+      self.add_subscriber context.params.json["subscriber"].as(String)
   end
 end

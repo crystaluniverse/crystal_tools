@@ -5,6 +5,7 @@ class RepoConfig
 end
 
 class GitTriggerConfig
+  property id : String = ""
   property slaves : Array(String) = Array(String).new
   property port : Int64 = 8080_i64
   property repos : Array(RepoConfig) = Array(RepoConfig).new

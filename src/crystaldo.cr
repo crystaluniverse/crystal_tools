@@ -336,7 +336,11 @@ module CrystalDo
           usage "ct gittrigger reload"
           desc "reload git trigger server"
           run do |opts, args|
-            GitTrigger.reload
+            begin
+              GitTrigger.reload
+            rescue ex
+              CrystalTools.log "- [GitTrigger Server] :: Configuration reloaded failure. #{ex}", 3
+            end
           end
         end
 
@@ -344,12 +348,15 @@ module CrystalDo
           help short: "-h"
           usage "ct gittrigger subscribe"
           desc "subscribe to remote server"
+          argument "remote_server", type: String, required: true, desc: "Remote server"
           run do |opts, args|
-            #TODO: put opts in for remote addr
-            GitTrigger.subscribe
+            begin
+              GitTrigger.subscribe args.remote_server
+            rescue ex
+              CrystalTools.log " - [GitTrigger Server] :: Subscription failure. #{ex}", 3
+            end
           end
         end
-
       end
     end
   end
