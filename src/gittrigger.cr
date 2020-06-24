@@ -73,28 +73,26 @@ module GitTrigger
         change = false
         update = {
           "url" => repo_url,
-          "last_commit": last_commit,
-          "timestamp": last_commit_timestamp,
-            "id": 0_i32
+          "last_commit" => last_commit,
+          "timestamp" => last_commit_timestamp,
+          "id" => ""
         }
 
         # check repo state exists in redis
+      
         if REDIS.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
-          puts "#{repo_url} not found"
           change = true
         else
-          puts "#{repo_url} found"
-          state = REDIS.hmget("gittrigger:changes:#{repo_url}", "url", "last_commit", "timestamp", "id" )
-          if state[1] != last_commit
+          state = REDIS.hgetall("gittrigger:repos:#{repo_url}").map { |v| v.to_s }
+          commit = state.index("last_commit").not_nil!
+          if state[commit+1].to_s != last_commit
             change = true
           end
         end
 
          # If there's change, add to redis, schedule neph file, and notify subscribers
         if change
-          puts puts "#{repo_url} changed"
-          puts REDIS.incr("gittrigger:repos:#{repo_url}:id")
-          update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_i32
+          update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_s
           REDIS.hmset("gittrigger:repos:#{repo_url}", update)
           self.schedule_job repo_url
         end
