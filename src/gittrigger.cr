@@ -86,8 +86,14 @@ module GitTrigger
   # Pull each time interval
   # update loacal redis if there's any changes
   # schedule neph tasks if there's any updates; ile append then to @@jobs[repo_url]
-  # need a way to update or terminate if not valid any more, i.e repo removed from config
-  def self.monitor_repo(repo_url)
+  # if run as main_watcher and repo not found any more, it terminates
+  # if run as non main watcher mens it is run as a result of notification coming from
+  # master that there's a change. in this case we check if repo exists before we 
+  # update state and exit as there's already another watcher that mighr being sleeping
+  # but if we found that this is a new repo. we need to update config, update config file
+  # and we keep this watcher running to monitor future updates for that repo as we know for sure
+  # that no other watchers running
+  def self.monitor_repo(repo_url, main_watcher=true)
     spawn do
       loop do
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher started for #{repo_url}", 2
@@ -97,10 +103,15 @@ module GitTrigger
           repo_urls << repo.url
         end
         # make sure repo should be monitored, and get current time interval
-        # if repo is no more there in config file, exit this fiber
+        # if repo is no more there in config file, exit this fiber (unless main_watcher=false)
+        # if main_watcher is false we know that this fiber is run as a subsequence event 
+        # for a notification from master that there's a new repo added. so in this case, we need to keep running and
+        # not exiting as we know for sure that this repo has no other watchers
         # if time interval for pulling changed, we use the new updated time
+
         index = repo_urls.index(repo_url)
-        if index.nil?
+        new_repo = index.nil?
+        if new_repo && main_watcher
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
           break
         end
@@ -139,7 +150,41 @@ module GitTrigger
           self.schedule_job repo_url
         end
         
-        time_interval = @@config.repos[index].pull_interval
+        # monitor_repo is called as a sbsequent trigger by master that there's a change
+        # in this case, we have another repo watcher already running but might be sleeping
+        # so we execute this once to update repo state and that's all 
+        if !main_watcher
+          # if it's new repo and only once is run as response to master
+          # we need to keep that fiber running
+          if !new_repo
+            break
+          else
+            # update config with the new repo
+            rc = RepoConfig.new
+            rc.name = update["url"].split("/")[0]
+            rc.url = update["url"]
+            rc.pull_interval = 300
+            @@config.repos << rc
+            index = @@config.repos.size - 1
+            # write new config
+            io = IO::Memory.new
+            configfile_path = "#{__DIR__}/gittrigger/config/gittrigger.toml"
+            configfile = File.read(configfile_path)
+            configfile.split("\n").each do |line|
+              io << line
+              io << "\n"
+            end
+            io << %([["repos"]])
+            io << %(  name = "#{rc.name}")
+            io << %(  url = "#{rc.url}")
+            io << %(  pull_interval = "#{rc.pull_interval}")
+            io << io << "\n"
+            File.write(configfile_path, io.to_s)
+            CrystalTools.log " - [GitTrigger Server] :: Configuration file updated on disk successfuly", 2
+          end
+        end
+
+        time_interval = @@config.repos[index.not_nil!].pull_interval
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher sleeping (#{time_interval}) s for #{repo_url}", 2
         sleep time_interval
       end
@@ -229,50 +274,28 @@ module GitTrigger
     Kemal.run
   end
 
-  get "/github" do |context|
-    if !context.params.query.has_key?("repo_name") || !context.params.query.has_key?("last_change")
-      halt context, status_code: 404, response: "Not Found"
-    end
+  post "/repos/*" do |context|
+    repo_url = context.request.path.sub("/repos/", "")
+    self.monitor_repo(repo_url, false)
+  end
 
-    repo_name = context.params.query["repo_name"]
-    last_change_id = context.params.query["last_change"].to_i32
-    
-    changes = REDIS.hmget("gittrigger:changes:#{repo_name}", "url", "last_commit", "timestamp", "id" )
-    
-    if changes.includes?(nil)
+  get "/repos/*" do |context|
+    repo_url = context.request.path.sub("/repos/", "")
+    if !context.params.query.has_key?("last_change")
       halt context, status_code: 404, response: "Not Found"
     end
-    if changes[3].as(String).to_i32 <= last_change_id
+    if REDIS.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
+      halt context, status_code: 404, response: "Not Found"
+    end
+    last_change_id = context.params.query["last_change"].to_i32
+    state = REDIS.hmget("gittrigger:repos:#{repo_url}", "id", "url", "last_commit", "timestamp")
+    if state[2] == last_change_id
       halt context, status_code: 204, response: ""
     end
-
-    {"url" => changes[0], "last_commit": changes[1], "timestamp": changes[2], "id": changes[3]}.to_json
+    {"id"=> state[0], "url" => state[1], "last_commit" => state[2], "timestamp" => state[3]}.to_json
   end
 
-  post "/github" do |context|
-    body = context.params.json
-    # signature = "sha1=" + OpenSSL::HMAC.hexdigest(:sha1, @@secret.not_nil!, body.to_json)
-    # githubsig= context.request.headers["X-Hub-Signature"]
-    
-    payload = body["repository"].as(Hash)
-    repo_name = payload["full_name"].to_s
-    url = payload["html_url"].to_s
-    last_commit = body["head_commit"].as(Hash)["id"].to_s
-    timestamp = payload["pushed_at"].to_s
-
-    tid = REDIS.incr("gittrigger:changes:#{repo_name}:id").to_i32
-    # REDIS.lpush("gittrigger:repos:#{repo_name}", {
-    REDIS.hmset("gittrigger:changes:#{repo_name}", {
-      "url" => url,
-       "last_commit": last_commit,
-        "timestamp": timestamp,
-        "id": tid
-      })
-    
-    puts "\n\n\n"
-    CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
-  end
-
+  
   # Reload config
   post "/config/reload" do |context|
     @@config = self.load_config
@@ -283,9 +306,7 @@ module GitTrigger
     if !context.params.json.has_key?("subscriber")
       halt context, status_code: 409, response: "Bad Request"
     end
-    puts "here"
       puts context.params.json["subscriber"]
-      puts "ss"
       self.add_subscriber context.params.json["subscriber"].as(String)
   end
 end

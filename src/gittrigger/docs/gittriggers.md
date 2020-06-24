@@ -10,6 +10,7 @@ A Git repos manger
 - when repo watcher is triggered it pulls, check local redis if it has same state of the repp and update if needed
 - If repo state is updated, it means there're new changes, server reads the `.crystal.do` watcher reads `main.yaml` neph file for that repo and execute locally in another fiber
 - subscribers/slaves are notified that there're new changes, so they can pull this repo and update their local state
+- we run same watcher code in slave in case of a new update with the parameter `only_once` and we do a check if repo didn't exist before meaning no other watchers watching it, we keep this watcher otherwise we terminate it 
 
 #### Development
 
