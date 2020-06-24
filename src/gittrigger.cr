@@ -45,6 +45,93 @@ module GitTrigger
     return config_obj
   end
 
+  # Fiber:: monitoring a repo
+  # Pull each time interval
+  # update loacal redis if there's any changes
+  # schedule neph tasks if there's any updates
+  # need a way to update or terminate if not valid any more, i.e repo removed from config
+  def self.monitor_repo(repo_url)
+    spawn do
+      loop do
+        puts "loop start"
+        # get all repo urls
+        repo_urls = [] of String
+        @@config.repos.each do |repo|
+          repo_urls << repo.url
+        end
+        # make sure repo should be monitored, and get current time interval
+        index = repo_urls.index(repo_url)
+        if index.nil?
+          break
+        end
+        CrystalTools.log "Repo Watcher [#{repo_url}] Checking for updates", 2
+        
+        repo = GIT.get url: "github.com/#{repo_url}"
+        last_commit = repo.head
+        last_commit_timestamp = repo.timestamp(last_commit)
+        
+        change = false
+        update = {
+          "url" => repo_url,
+          "last_commit": last_commit,
+          "timestamp": last_commit_timestamp,
+            "id": 0_i32
+        }
+
+        # check repo state exists in redis
+        if REDIS.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
+          puts "#{repo_url} not found"
+          change = true
+        else
+          puts "#{repo_url} found"
+          state = REDIS.hmget("gittrigger:changes:#{repo_url}", "url", "last_commit", "timestamp", "id" )
+          if state[1] != last_commit
+            change = true
+          end
+        end
+
+         # If there's change, add to redis, schedule neph file, and notify subscribers
+        if change
+          puts puts "#{repo_url} changed"
+          puts REDIS.incr("gittrigger:repos:#{repo_url}:id")
+          update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_i32
+          REDIS.hmset("gittrigger:repos:#{repo_url}", update)
+          self.schedule_job repo_url
+        end
+        
+        time_interval = @@config.repos[index].pull_interval
+        CrystalTools.log "Repo Watcher [#{repo_url}] goint to sleep for #{time_interval}", 2
+        sleep time_interval
+      end
+    end
+  end
+
+  def self.monitor
+    @@config.repos.each do |repo|
+      self.monitor_repo repo.url
+    end
+  end
+
+# find neph file in the repo path, add to scheduled jobs if exists
+  def self.schedule_job(repo_url : String)
+    path = "#{GIT.path_code}/github/#{repo_url}/.crystaldo"
+    if File.exists?("#{path}/main.yaml")
+      path = "#{path}/main.yaml"
+    elsif File.exists?("#{path}/main.yml")
+      path = "#{path}/main.yml"
+    else
+      return
+    end
+
+    script = File.read(path)
+    if @@jobs.has_key?(repo_url)
+      @@jobs[repo_url] << path
+    else
+      @@jobs[repo_url] = Array{path}
+    end
+    CrystalTools.log "Trigger: repo_name: #{repo_url}", 2
+  end
+  
   # called by ct gittrigger reload command
   def self.reload
     res = HTTP::Client.post(
@@ -59,86 +146,13 @@ module GitTrigger
     end
   end
   
-  # ensure repos are up2date
-  def self.ensure_repos
-    reponames = [] of String
-    @@config.repos.each do |repo|
-      GIT.get url: "github.com/#{repo.url}"
-      reponame = repo.url
-      reponames << reponame
-      self.add_job reponame
-    end
-    REDIS.lpush("gittrigger:reponames", reponames)
-    return reponames
-  end
-  
-  def self.process_changes(serverurl : String = "")
-    # CrystalTools.log "Processing jobs for: repo: #{repourl}", 2
-
-    # local changes
-    if serverurl == ""
-      repos = self.ensure_repos
-      repos.each do |repo|
-        while @@jobs[repo].size > 0
-          neph_file_path = @@jobs[repo].pop
-          neph = CrystalTools::NephExecuter.new neph_file_path
-          neph.exec
-        end
-      end
-
-      
-    end
-    #get last_change id in your local redis , if unknown its 0
-    #do http get request to the server (/github/changes)
-    # now I get a dict with changed github repos, we get the urls
-    #use GIT... to do a pull (get repo based on url)
-    #now execute neph script in $repopath/.crystaldo/main.yaml
-    #logs are done underneith $repopath/.crystaldo/.neph (by default), nothing todo
-
-    #if not serverurl, check for local execution
-
-    #FOR EACH CHANGE
-    # r = GIT.get(url = )
-
-
-  end
-
-  
   def self.start
-    self.process_changes ""
+    self.monitor
     Kemal.config.port = @@config.port.to_i32
     Kemal.run
   end
 
-  def self.add_job(repurl : String)
-    path = "#{GIT.path_code}/github/#{repurl}/.crystaldo"
-    if File.exists?("#{path}/main.yaml")
-      path = "#{path}/main.yaml"
-    elsif File.exists?("#{path}/main.yml")
-      path = "#{path}/main.yml"
-    else
-      return
-    end
-
-    script = File.read(path)
-    if @@jobs.has_key?(repurl)
-      @@jobs[repurl] << path
-    else
-      @@jobs[repurl] = Array{path}
-    end
-    CrystalTools.log "Trigger: repo_name: #{repurl}", 2
-    CrystalTools.log "Trigger: script: #{script}", 2
-
-  end
-
-  def self.subscribe(serverurl : String = "")
-    spawn do
-      loop do
-        self.process_changes serverurl
-        sleep 60
-      end
-    end
-  end
+  def self.subscribe(serverurl : String = "");end
 
 
   get "/github" do |context|
@@ -183,7 +197,6 @@ module GitTrigger
     
     puts "\n\n\n"
     CrystalTools.log "Trigger: repo_name: #{repo_name}", 2
-    self.add_job url 
   end
 
    # Reload config
