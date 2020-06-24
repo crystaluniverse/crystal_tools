@@ -5,6 +5,7 @@ require "./crystaltools"
 require "openssl"
 require "openssl/hmac"
 require "toml"
+require "neph"
 
 module GitTrigger
   include CrystalTools
@@ -16,9 +17,22 @@ module GitTrigger
   
   @@jobs = {} of String => Array(String)
     
-  def self.process_changes(repourl : String = "")
-    CrystalTools.log "Processing jobs for: repo: #{repourl}", 2
+  def self.process_changes(serverurl : String = "")
+    # CrystalTools.log "Processing jobs for: repo: #{repourl}", 2
 
+    # local changes
+    if serverurl == ""
+      repos = self.ensure_repos
+      repos.each do |repo|
+        while @@jobs[repo].size > 0
+          neph_file_path = @@jobs[repo].pop
+          neph = CrystalTools::NephExecuter.new neph_file_path
+          neph.exec
+        end
+      end
+
+      
+    end
     #get last_change id in your local redis , if unknown its 0
     #do http get request to the server (/github/changes)
     # now I get a dict with changed github repos, we get the urls
@@ -41,15 +55,20 @@ module GitTrigger
   end
 
   def self.ensure_repos
+    reponames = [] of String
     self.get_config.each do |repo|
       repo = repo.as(Hash)
       GIT.get url: "github.com/#{repo["url"]}"
-      self.add_job repo["url"].as(String)
+      reponame = repo["url"].as(String)
+      reponames << reponame
+      self.add_job reponame
     end
+    REDIS.lpush("gittrigger:reponames", reponames)
+    return reponames
   end
   
   def self.start
-    self.ensure_repos
+    self.process_changes ""
     Kemal.config.port = 8080
     Kemal.run
   end
@@ -66,19 +85,22 @@ module GitTrigger
 
     script = File.read(path)
     if @@jobs.has_key?(repurl)
-      @@jobs[repurl] << script
+      @@jobs[repurl] << path
     else
-      @@jobs[repurl] = Array{script}
+      @@jobs[repurl] = Array{path}
     end
     CrystalTools.log "Trigger: repo_name: #{repurl}", 2
     CrystalTools.log "Trigger: script: #{script}", 2
-    spawn self.process_changes repurl
 
   end
 
   def self.subscribe(serverurl : String = "")
-    #every minute call self.process_changes...
-
+    spawn do
+      loop do
+        self.process_changes serverurl
+        sleep 60
+      end
+    end
   end
 
 
