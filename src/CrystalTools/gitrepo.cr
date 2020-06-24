@@ -386,5 +386,17 @@ module CrystalTools
       ensure()
       Executor.exec("cd #{@path} && git push")
     end
+
+    # last commit
+    def head
+      CrystalTools.log " - Git HEAD #{@path}", 2
+      Executor.exec("cd #{@path} && git rev-parse HEAD")
+    end
+
+    # timestamp of commit
+    def timestamp(commit)
+      CrystalTools.log " - Git #{@path} timestamp for commit #{commit}", 2
+      Executor.exec("cd #{@path} && git show -s --format=%ct #{commit}")
+    end
   end
 end
