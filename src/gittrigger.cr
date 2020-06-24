@@ -106,13 +106,7 @@ module GitTrigger
     end
   end
 
-  def self.monitor
-    @@config.repos.each do |repo|
-      self.monitor_repo repo.url
-    end
-  end
-
-# find neph file in the repo path, add to scheduled jobs if exists
+  # find neph file in the repo path, add to scheduled jobs if exists
   def self.schedule_job(repo_url : String)
     path = "#{GIT.path_code}/github/#{repo_url}/.crystaldo"
     if File.exists?("#{path}/main.yaml")
@@ -131,6 +125,28 @@ module GitTrigger
     end
     CrystalTools.log "Trigger: repo_name: #{repo_url}", 2
   end
+
+  def self.monitor
+    @@config.repos.each do |repo|
+      self.monitor_repo repo.url
+    end
+  end
+
+  def self.scheduler
+    CrystalTools.log "Scheduler: started", 2
+    spawn do
+      loop do
+        @@jobs.each do |repo, tasks|
+          while tasks.size > 0
+            neph_file_path = @@jobs[repo].pop
+            neph = CrystalTools::NephExecuter.new neph_file_path
+            neph.exec
+          end
+        end
+        sleep 10
+      end
+    end
+  end
   
   # called by ct gittrigger reload command
   def self.reload
@@ -148,6 +164,7 @@ module GitTrigger
   
   def self.start
     self.monitor
+    self.scheduler
     Kemal.config.port = @@config.port.to_i32
     Kemal.run
   end
