@@ -18,7 +18,9 @@ module GitTrigger
   @@config : GitTriggerConfig = self.load_config
   @@jobs = {} of String => Array(String)
   
-  # Read config file into class property
+  # Read config file into @@config
+  # This function is called when you do `ct gittrigger reload`
+  # and loads new config
   def self.load_config
     configfile = File.read("#{__DIR__}/gittrigger/config/gittrigger.toml")
     config = TOML.parse(configfile).as(Hash)
@@ -41,7 +43,7 @@ module GitTrigger
       rc.pull_interval = repo["pull_interval"].as(Int64)
       config_obj.repos << rc
     end
-    puts config_obj
+    CrystalTools.log " - [GitTrigger Server] :: Configuration file loaded successfuly", 2
     return config_obj
   end
 
@@ -53,7 +55,7 @@ module GitTrigger
   def self.monitor_repo(repo_url)
     spawn do
       loop do
-        puts "loop start"
+        CrystalTools.log " - [GitTrigger Server] :: Repo watcher started for #{repo_url}", 2
         # get all repo urls
         repo_urls = [] of String
         @@config.repos.each do |repo|
@@ -62,9 +64,11 @@ module GitTrigger
         # make sure repo should be monitored, and get current time interval
         index = repo_urls.index(repo_url)
         if index.nil?
+          CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
           break
         end
-        CrystalTools.log "Repo Watcher [#{repo_url}] Checking for updates", 2
+
+        CrystalTools.log " - [GitTrigger Server] :: Repo watcher checking for updtes for #{repo_url}", 2
         
         repo = GIT.get url: "github.com/#{repo_url}"
         last_commit = repo.head
@@ -92,13 +96,14 @@ module GitTrigger
 
          # If there's change, add to redis, schedule neph file, and notify subscribers
         if change
+          CrystalTools.log " - [GitTrigger Server] :: Repo watcher updating state for #{repo_url}", 2
           update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_s
           REDIS.hmset("gittrigger:repos:#{repo_url}", update)
           self.schedule_job repo_url
         end
         
         time_interval = @@config.repos[index].pull_interval
-        CrystalTools.log "Repo Watcher [#{repo_url}] goint to sleep for #{time_interval}", 2
+        CrystalTools.log " - [GitTrigger Server] :: Repo watcher sleeping (#{time_interval}) s for #{repo_url}", 2
         sleep time_interval
       end
     end
@@ -114,14 +119,12 @@ module GitTrigger
     else
       return
     end
-
-    script = File.read(path)
+    CrystalTools.log " - [GitTrigger Server] :: Job Scheduler adding jobs for #{repo_url}", 2
     if @@jobs.has_key?(repo_url)
       @@jobs[repo_url] << path
     else
       @@jobs[repo_url] = Array{path}
     end
-    CrystalTools.log "Trigger: repo_name: #{repo_url}", 2
   end
 
   def self.monitor
@@ -130,15 +133,17 @@ module GitTrigger
     end
   end
 
-  def self.scheduler
-    CrystalTools.log "Scheduler: started", 2
+  def self.executor
+    CrystalTools.log " - [GitTrigger Server] :: Job Executor Starting", 2
     spawn do
       loop do
-        @@jobs.each do |repo, tasks|
+        @@jobs.each do |repo_url, tasks|
           while tasks.size > 0
-            neph_file_path = @@jobs[repo].pop
+            neph_file_path = @@jobs[repo_url].pop
             neph = CrystalTools::NephExecuter.new neph_file_path
+            CrystalTools.log " - [GitTrigger Server] :: Job Scheduler (START) execution #{neph_file_path} for #{repo_url}", 2
             neph.exec
+            CrystalTools.log " - [GitTrigger Server] :: Job Scheduler (END) execution #{neph_file_path} for #{repo_url}", 2
           end
         end
         sleep 10
@@ -153,16 +158,14 @@ module GitTrigger
       headers: HTTP::Headers{"content_type" => "application/json"}
     )
 
-    if res.status_code == 200
-      CrystalTools.log "Config reloaded", 2
-    else
-      CrystalTools.log "Config reload failure", 5
+    if res.status_code != 200
+      CrystalTools.log " - [GitTrigger Server] :: Configuration reloaded failure", 5
     end
   end
   
   def self.start
     self.monitor
-    self.scheduler
+    self.executor
     Kemal.config.port = @@config.port.to_i32
     Kemal.run
   end
@@ -217,6 +220,5 @@ module GitTrigger
    # Reload config
   post "/config/reload" do |context|
     @@config = self.load_config
-    CrystalTools.log "Config Reloaded: #{@@config}", 2
   end
 end
