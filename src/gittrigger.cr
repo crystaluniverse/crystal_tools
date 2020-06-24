@@ -288,8 +288,8 @@ module GitTrigger
       halt context, status_code: 404, response: "Not Found"
     end
     last_change_id = context.params.query["last_change"].to_i32
-    state = REDIS.hmget("gittrigger:repos:#{repo_url}", "id", "url", "last_commit", "timestamp")
-    if state[2] == last_change_id
+    state = REDIS.hmget("gittrigger:repos:#{repo_url}", "id", "url", "last_commit", "timestamp").map {|v| v.to_s}
+    if state[0].to_i32 == last_change_id
       halt context, status_code: 204, response: ""
     end
     {"id"=> state[0], "url" => state[1], "last_commit" => state[2], "timestamp" => state[3]}.to_json
