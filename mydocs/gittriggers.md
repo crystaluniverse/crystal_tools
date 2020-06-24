@@ -19,8 +19,8 @@ A Git repos manger
 - run ngrok if needed `ngrok http 8080` and get the URL
 
 #### subcommands
-- `subscibe`
-    - description: subscribe a local instnce to remote server 
+- `subscribe`
+    - description: subscribe a local instance to remote server 
     - command :  `ct gittrigger subscribe {remote_url}`
     - mechanism: gets the server ID from `gittrigger.toml` and send it to the remote machine. remote machine config file will be updated/re-rewritten with the new subscriber
     - testing: `ct gittrigger subscribe "http://127.0.0.1:8000"` this is to register the local isntance as slave in itself. (only for testing)

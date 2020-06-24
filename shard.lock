@@ -10,7 +10,7 @@ shards:
 
   crystar:
     git: https://github.com/naqvis/crystar.git
-    version: 0.1.6
+    version: 0.1.7
 
   docker:
     git: https://github.com/aca-labs/crystal-docker.git

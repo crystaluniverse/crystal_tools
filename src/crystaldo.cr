@@ -27,8 +27,6 @@ module CrystalDo
         end
       end
 
-
-
       # TODO: hamdy, how can we make this more modular, want to put in different files, e.g. per topic e.g. git
       sub "git" do
         desc "work with git"
