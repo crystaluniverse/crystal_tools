@@ -162,7 +162,7 @@ module GitTrigger
   # then we need to get the neph_file for that repo
   # and schedule it to be executed
   def self.schedule_job(gitrepo : GITRepo)
-    repo_url = gitrepo.url
+    repo_url = gitrepo.url.gsub("git@", "").rstrip(".git")
     
     @@config.exec_scripts.each do |script|
       base_path = "#{gitrepo.path}/.crystaldo"
@@ -257,8 +257,9 @@ module GitTrigger
     Kemal.run
   end
 
+  #ex: /repos/github.com/hamdy/test
   post "/repos/*" do |context|
-    repo_url = context.request.path.sub("/repos/", "")
+    repo_url = context.request.path.sub("/repos/", "").rstrip("/")
     self.monitor_repo(repo_url, false)
   end
 
