@@ -106,7 +106,7 @@ module GitTrigger
         # if time interval for pulling changed, we use the new updated time
 
         index = repo_urls.index(repo_url)
-        if index.nil?
+        if index.nil? && main_watcher
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
           break
         end
@@ -143,9 +143,14 @@ module GitTrigger
           update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_s
           REDIS.hmset("gittrigger:repos:#{repo_url}", update)
           self.schedule_job repo
+          self.notify_slaves repo_url
+        end
+        
+        if !main_watcher && !index.nil?
+          break
         end
 
-        time_interval = @@config.repos[index].pull_interval
+        time_interval = @@config.repos[index.not_nil!].pull_interval
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher sleeping (#{time_interval}) s for #{repo_url}", 2
         sleep time_interval
       end
@@ -211,6 +216,21 @@ module GitTrigger
           end
         end
         sleep 10
+      end
+    end
+  end
+
+  def self.notify_slaves(repo_url)
+    @@config.slaves.each do |slave|
+      spawn do
+        CrystalTools.log " - [GitTrigger Server] :: Notifier #{repo_url} updates are being sent to  #{slave}", 3
+        res = HTTP::Client.post(
+          "#{slave}/repos/#{repo_url}",
+          headers: HTTP::Headers{"content_type" => "application/json"}
+        )
+        if res.status_code != 200
+          CrystalTools.log " - [GitTrigger Server] :: Notifier #{repo_url} updates failed to be sent to #{slave}", 3
+        end
       end
     end
   end
