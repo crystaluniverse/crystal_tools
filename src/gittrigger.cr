@@ -9,8 +9,13 @@ require "neph"
 
 class RepoConfig	
   property name : String = ""	
-  property url : String = ""	
-  property pull_interval : Int64 = 300_i64	
+  property organization : String = ""	
+  property git_base_url : String = ""
+  property pull_interval : Int64 = 300_i64
+
+  def url
+    return Path.new(@git_base_url, @organization, @name).to_s
+  end
 end	
 
 class GitTriggerConfig	
@@ -18,6 +23,7 @@ class GitTriggerConfig
   property slaves : Array(String) = Array(String).new	
   property port : Int64 = 8080_i64	
   property repos : Array(RepoConfig) = Array(RepoConfig).new	
+  property exec_scripts : Array(String) = Array(String).new
 end 
 
 
@@ -52,6 +58,10 @@ module GitTrigger
     server["slaves"].as(Array).each do |slave|
       config_obj.slaves << slave.as(String)
     end
+    puts server
+    server["exec_scripts"].as(Array).each do |script|
+      config_obj.exec_scripts << script.as(String)
+    end
 
     config_obj.id = server["id"].as(String)
 
@@ -59,7 +69,8 @@ module GitTrigger
       repo = repo.as(Hash)
       rc = RepoConfig.new
       rc.name = repo["name"].as(String)
-      rc.url = repo["url"].as(String)
+      rc.organization = repo["organization"].as(String)
+      rc.git_base_url = repo["git_base_url"].as(String)
       rc.pull_interval = repo["pull_interval"].as(Int64)
       config_obj.repos << rc
     end
@@ -95,15 +106,14 @@ module GitTrigger
         # if time interval for pulling changed, we use the new updated time
 
         index = repo_urls.index(repo_url)
-        new_repo = index.nil?
-        if new_repo && main_watcher
+        if index.nil?
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
           break
         end
 
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher checking for updtes for #{repo_url}", 2
         
-        repo = GIT.get url: "github.com/#{repo_url}"
+        repo = GIT.get url: "#{repo_url}"
         last_commit = repo.head
         last_commit_timestamp = repo.timestamp(last_commit)
         
@@ -132,44 +142,10 @@ module GitTrigger
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher updating state for #{repo_url}", 2
           update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_s
           REDIS.hmset("gittrigger:repos:#{repo_url}", update)
-          self.schedule_job repo_url
-        end
-        
-        # monitor_repo is called as a sbsequent trigger by master that there's a change
-        # in this case, we have another repo watcher already running but might be sleeping
-        # so we execute this once to update repo state and that's all 
-        if !main_watcher
-          # if it's new repo and only once is run as response to master
-          # we need to keep that fiber running
-          if !new_repo
-            break
-          else
-            # update config with the new repo
-            rc = RepoConfig.new
-            rc.name = update["url"].split("/")[0]
-            rc.url = update["url"]
-            rc.pull_interval = 300
-            @@config.repos << rc
-            index = @@config.repos.size - 1
-            # write new config
-            io = IO::Memory.new
-            configfile_path = "#{__DIR__}/config/gittrigger.toml"
-            configfile = File.read(configfile_path)
-            configfile.split("\n").each do |line|
-              io << line
-              io << "\n"
-            end
-            io << %([["repos"]])
-            io << %(  name = "#{rc.name}")
-            io << %(  url = "#{rc.url}")
-            io << %(  pull_interval = "#{rc.pull_interval}")
-            io << io << "\n"
-            File.write(configfile_path, io.to_s)
-            CrystalTools.log " - [GitTrigger Server] :: Configuration file updated on disk successfuly", 2
-          end
+          self.schedule_job repo
         end
 
-        time_interval = @@config.repos[index.not_nil!].pull_interval
+        time_interval = @@config.repos[index].pull_interval
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher sleeping (#{time_interval}) s for #{repo_url}", 2
         sleep time_interval
       end
@@ -180,20 +156,35 @@ module GitTrigger
   # this function is called, if there's a change in a repo
   # then we need to get the neph_file for that repo
   # and schedule it to be executed
-  def self.schedule_job(repo_url : String)
-    path = "#{GIT.path_code}/github/#{repo_url}/.crystaldo"
-    if File.exists?("#{path}/main.yaml")
-      path = "#{path}/main.yaml"
-    elsif File.exists?("#{path}/main.yml")
-      path = "#{path}/main.yml"
-    else
-      return
-    end
-    CrystalTools.log " - [GitTrigger Server] :: Job Scheduler adding jobs for #{repo_url}", 2
-    if @@jobs.has_key?(repo_url)
-      @@jobs[repo_url] << path
-    else
-      @@jobs[repo_url] = Array{path}
+  def self.schedule_job(gitrepo : GITRepo)
+    repo_url = gitrepo.url
+    
+    @@config.exec_scripts.each do |script|
+      base_path = "#{gitrepo.path}/.crystaldo"
+      path = ""
+
+      if script.ends_with?(".yaml") || script.ends_with?(".yml")
+        if  File.exists?("#{base_path}/#{script}")
+          path = "#{base_path}/#{script}"
+        end
+      elsif !script.includes?(".")
+        if  File.exists?("#{base_path}/#{script}.yaml")
+          path = "#{base_path}/#{script}.yaml"
+        elsif File.exists?("#{base_path}/#{script}.yml")
+          path = "#{base_path}/#{script}.yml"
+        end
+      end
+      
+      if !path
+        next
+      end
+      
+      CrystalTools.log " - [GitTrigger Server] :: Job Scheduler scheduling #{path} for execution for #{repo_url}", 2
+      if @@jobs.has_key?(repo_url)
+        @@jobs[repo_url] << path
+      else
+        @@jobs[repo_url] = Array{path}
+      end
     end
   end
 
