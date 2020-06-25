@@ -341,20 +341,6 @@ module CrystalDo
             end
           end
         end
-
-        sub "subscribe" do
-          help short: "-h"
-          usage "ct gittrigger subscribe"
-          desc "subscribe to remote server"
-          argument "remote_server", type: String, required: true, desc: "Remote server"
-          run do |opts, args|
-            begin
-              GitTrigger.subscribe args.remote_server
-            rescue ex
-              CrystalTools.log " - [GitTrigger Server] :: Subscription failure. #{ex}", 3
-            end
-          end
-        end
       end
     end
   end

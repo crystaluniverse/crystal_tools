@@ -1,5 +1,7 @@
-["gittriggers"]
-  slaves = [""]
+["server"]
+  id = "1"
+  port = 8080
+  slaves = []
 
 [["repos"]]
   name = "test"

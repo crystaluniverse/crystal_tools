@@ -6,7 +6,20 @@ require "openssl"
 require "openssl/hmac"
 require "toml"
 require "neph"
-require "./gittrigger/models"
+
+class RepoConfig	
+  property name : String = ""	
+  property url : String = ""	
+  property pull_interval : Int64 = 300_i64	
+end	
+
+class GitTriggerConfig	
+  property id : String = ""	
+  property slaves : Array(String) = Array(String).new	
+  property port : Int64 = 8080_i64	
+  property repos : Array(RepoConfig) = Array(RepoConfig).new	
+end 
+
 
 module GitTrigger
   include CrystalTools
@@ -27,7 +40,7 @@ module GitTrigger
   # This function is called when you do `ct gittrigger reload`
   # and loads new config
   def self.load_config
-    configfile = File.read("#{__DIR__}/gittrigger/config/gittrigger.toml")
+    configfile = File.read("#{__DIR__}/config/gittrigger.toml")
     config = TOML.parse(configfile).as(Hash)
 
     server = config["server"].as(Hash)
@@ -52,34 +65,6 @@ module GitTrigger
     end
     CrystalTools.log " - [GitTrigger Server] :: Configuration file loaded successfuly", 2
     return config_obj
-  end
-
-  # Add subscriber to @@config
-  # re-write the configuration file so when server restarts, subscribers can be there
-  def self.add_subscriber(server_url : String)
-    if @@config.slaves.index(server_url).nil?
-      @@config.slaves.as(Array) << server_url
-      
-      CrystalTools.log " - [GitTrigger Server] :: Subscribers list updated with #{server_url}", 2
-      
-      configfile_path = "#{__DIR__}/gittrigger/config/gittrigger.toml"
-      configfile = File.read(configfile_path)
-
-      # Re-write configuration file with new values for future use
-      io = IO::Memory.new
-      configfile.split("\n").each do |line|
-        if line.includes?("slaves")
-          start = line.index("slaves")
-          last = line.size - 1
-          io << line.sub(start..last, "slaves = #{@@config.slaves.to_s}")
-        else
-          io << line
-        end
-        io << "\n"
-      end
-      File.write(configfile_path, io.to_s)
-      CrystalTools.log " - [GitTrigger Server] :: Configuration file updated on disk successfuly", 2
-    end
   end
 
   # Fiber:: monitoring a repo
@@ -168,7 +153,7 @@ module GitTrigger
             index = @@config.repos.size - 1
             # write new config
             io = IO::Memory.new
-            configfile_path = "#{__DIR__}/gittrigger/config/gittrigger.toml"
+            configfile_path = "#{__DIR__}/config/gittrigger.toml"
             configfile = File.read(configfile_path)
             configfile.split("\n").each do |line|
               io << line
@@ -254,19 +239,6 @@ module GitTrigger
     end
   end
   
-  # called by `ct gittrigger subscribe {server_url}` command
-  def self.subscribe(server_url : String = "")
-    res = HTTP::Client.post(
-      "#{server_url}/subscriptions",
-      headers: HTTP::Headers{"content_type" => "application/json"},
-      body: {"subscriber" => @@config.id}.to_json
-    )
-
-    if res.status_code != 200
-      CrystalTools.log " - [GitTrigger Server] :: Subscription failure. failed to add #{server_url}", 3
-    end
-  end
-
   def self.start
     self.monitor
     self.executor
@@ -299,14 +271,5 @@ module GitTrigger
   # Reload config
   post "/config/reload" do |context|
     @@config = self.load_config
-  end
-
-  # subscriptions set
-  post "/subscriptions" do |context|
-    if !context.params.json.has_key?("subscriber")
-      halt context, status_code: 409, response: "Bad Request"
-    end
-      puts context.params.json["subscriber"]
-      self.add_subscriber context.params.json["subscriber"].as(String)
   end
 end
