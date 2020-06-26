@@ -30,17 +30,24 @@ end
 module GitTrigger
   include CrystalTools
   
-  REDIS = RedisFactory.client_get "gittriggers"
-  GIT = GITRepoFactory.new
+  @@redis : RedisClient? = nil
+  @@config : GitTriggerConfig? = nil
   
-  # config object (updated automatically when user use `ct gittrigger reload` command)
-  @@config : GitTriggerConfig = self.load_config
-
   # Dictionary of repo_url and list of neph files that need to be executed
-  # this class variable is being monitoed by background fiber that executes whatever
-  # comes there! and remove it from the stack!
-  # (executor) is responsible for this
+    # this class variable is being monitoed by background fiber that executes whatever
+    # comes there! and remove it from the stack!
+    # (executor) is responsible for this
   @@jobs = {} of String => Array(String)
+
+  def self.init
+    @@git = GITRepoFactory.new
+    @@redis = RedisFactory.client_get "gittriggers"
+    
+    # config object (updated automatically when user use `ct gittrigger reload` command)
+    @@config = self.load_config
+
+    
+  end
   
   # Read config file into @@config
   # This function is called when you do `ct gittrigger reload`
@@ -80,7 +87,7 @@ module GitTrigger
 
   # Fiber:: monitoring a repo
   # Pull each time interval
-  # update loacal redis if there's any changes
+  # update loacal @@redis if there's any changes
   # schedule neph tasks if there's any updates; ile append then to @@jobs[repo_url]
   # if run as main_watcher and repo not found any more, it terminates
   # if run as non main watcher mens it is run as a result of notification coming from
@@ -95,7 +102,7 @@ module GitTrigger
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher started for #{repo_url}", 2
         # get all repo urls
         repo_urls = [] of String
-        @@config.repos.each do |repo|
+        @@config.not_nil!.repos.each do |repo|
           repo_urls << repo.url
         end
         # make sure repo should be monitored, and get current time interval
@@ -113,7 +120,7 @@ module GitTrigger
 
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher checking for updtes for #{repo_url}", 2
         
-        repo = GIT.get url: "#{repo_url}"
+        repo = @@git.not_nil!.get url: "#{repo_url}"
         last_commit = repo.head
         last_commit_timestamp = repo.timestamp(last_commit)
         
@@ -125,23 +132,23 @@ module GitTrigger
           "id" => ""
         }
 
-        # check repo state exists in redis
+        # check repo state exists in @@redis
       
-        if REDIS.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
+        if @@redis.not_nil!.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
           change = true
         else
-          state = REDIS.hgetall("gittrigger:repos:#{repo_url}").map { |v| v.to_s }
+          state = @@redis.not_nil!.hgetall("gittrigger:repos:#{repo_url}").map { |v| v.to_s }
           commit = state.index("last_commit").not_nil!
           if state[commit+1].to_s != last_commit
             change = true
           end
         end
 
-         # If there's change, add to redis, schedule neph file, and notify subscribers
+         # If there's change, add to @@redis, schedule neph file, and notify subscribers
         if change
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher updating state for #{repo_url}", 2
-          update["id"] = REDIS.incr("gittrigger:repos:#{repo_url}:id").to_s
-          REDIS.hmset("gittrigger:repos:#{repo_url}", update)
+          update["id"] = @@redis.not_nil!.incr("gittrigger:repos:#{repo_url}:id").to_s
+          @@redis.not_nil!.hmset("gittrigger:repos:#{repo_url}", update)
           self.schedule_job repo
           self.notify_slaves repo_url
         end
@@ -150,7 +157,7 @@ module GitTrigger
           break
         end
 
-        time_interval = @@config.repos[index.not_nil!].pull_interval
+        time_interval = @@config.not_nil!.repos[index.not_nil!].pull_interval
         CrystalTools.log " - [GitTrigger Server] :: Repo watcher sleeping (#{time_interval}) s for #{repo_url}", 2
         sleep time_interval
       end
@@ -164,7 +171,7 @@ module GitTrigger
   def self.schedule_job(gitrepo : GITRepo)
     repo_url = gitrepo.url.gsub("git@", "").rstrip(".git")
     
-    @@config.exec_scripts.each do |script|
+    @@config.not_nil!.exec_scripts.each do |script|
       base_path = "#{gitrepo.path}/.crystaldo"
       path = ""
 
@@ -196,7 +203,7 @@ module GitTrigger
   # spawns fibers per repo, to check if it's updated
   # repos come from config file
   def self.monitor
-    @@config.repos.each do |repo|
+    @@config.not_nil!.repos.each do |repo|
       self.monitor_repo repo.url
     end
   end
@@ -221,7 +228,7 @@ module GitTrigger
   end
 
   def self.notify_slaves(repo_url)
-    @@config.slaves.each do |slave|
+    @@config.not_nil!.slaves.each do |slave|
       spawn do
         CrystalTools.log " - [GitTrigger Server] :: Notifier #{repo_url} updates are being sent to  #{slave}", 3
         res = HTTP::Client.post(
@@ -241,7 +248,7 @@ module GitTrigger
   # so it asks the local instance to reload config file
   def self.reload
     res = HTTP::Client.post(
-      "http://127.0.0.1:#{@@config.port}/config/reload",
+      "http://127.0.0.1:#{@@config.not_nil!.port}/config/reload",
       headers: HTTP::Headers{"content_type" => "application/json"}
     )
 
@@ -253,7 +260,7 @@ module GitTrigger
   def self.start
     self.monitor
     self.executor
-    Kemal.config.port = @@config.port.to_i32
+    Kemal.config.port = @@config.not_nil!.port.to_i32
     Kemal.run
   end
 
@@ -268,11 +275,11 @@ module GitTrigger
     if !context.params.query.has_key?("last_change")
       halt context, status_code: 404, response: "Not Found"
     end
-    if REDIS.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
+    if @@redis.not_nil!.exists("gittrigger:repos:#{repo_url}").as(Int64) == 0
       halt context, status_code: 404, response: "Not Found"
     end
     last_change_id = context.params.query["last_change"].to_i32
-    state = REDIS.hmget("gittrigger:repos:#{repo_url}", "id", "url", "last_commit", "timestamp").map {|v| v.to_s}
+    state = @@redis.not_nil!.hmget("gittrigger:repos:#{repo_url}", "id", "url", "last_commit", "timestamp").map {|v| v.to_s}
     if state[0].to_i32 == last_change_id
       halt context, status_code: 204, response: ""
     end

@@ -324,7 +324,7 @@ module CrystalDo
           usage "ct gittrigger start"
           desc "start git trigger server"
           run do |opts, args|
-            
+            GitTrigger.init
             GitTrigger.start
           end
         end
