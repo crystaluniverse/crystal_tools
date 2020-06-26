@@ -1,7 +1,7 @@
 require "redis"
 
 module CrystalTools
-  class RedisClient < Redis
+  class RedisClient < Redis::PooledClient
     # ## create stored procedure from path
     #
     # :param path: the path where the stored procedure exist
@@ -146,7 +146,7 @@ module CrystalTools
     @@sessions = {} of String => RedisClient
 
     # get a session, will make sure it exists
-    def self.client_get(name = "", host = "localhost", port = 6379, unixsocket : String? = nil, password : String? = nil)
+    def self.client_get(name = "", host = "localhost", port = 6379, unixsocket : String? = nil, password : String? = nil, pool_size : Int32 = 20)
       nameL = name.downcase
       if !@@sessions.has_key?(nameL)
         if unixsocket == nil
@@ -154,7 +154,7 @@ module CrystalTools
         end
         # CrystalTools.log unixsocket
         # @@sessions[nameL] = RedisClient.new(host: host, port: port, unixsocket: unixsocket, password: password)
-        @@sessions[nameL] = RedisClient.new(host: host, unixsocket: unixsocket, password: password)
+        @@sessions[nameL] = RedisClient.new(host: host, unixsocket: unixsocket, password: password, pool_size: pool_size)
       end
       @@sessions[nameL]
     end

@@ -335,6 +335,7 @@ module CrystalDo
           desc "reload git trigger server"
           run do |opts, args|
             begin
+              GitTrigger.init
               GitTrigger.reload
             rescue ex
               CrystalTools.log "- [GitTrigger Server] :: Configuration reloaded failure. #{ex}", 3

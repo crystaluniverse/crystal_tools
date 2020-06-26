@@ -26,7 +26,6 @@ class GitTriggerConfig
   property exec_scripts : Array(String) = Array(String).new
 end 
 
-
 module GitTrigger
   include CrystalTools
   
@@ -42,11 +41,10 @@ module GitTrigger
   def self.init
     @@git = GITRepoFactory.new
     @@redis = RedisFactory.client_get "gittriggers"
-    
+    @@redis.not_nil!.ping
+   
     # config object (updated automatically when user use `ct gittrigger reload` command)
     @@config = self.load_config
-
-    
   end
   
   # Read config file into @@config
@@ -65,7 +63,6 @@ module GitTrigger
     server["slaves"].as(Array).each do |slave|
       config_obj.slaves << slave.as(String)
     end
-    puts server
     server["exec_scripts"].as(Array).each do |script|
       config_obj.exec_scripts << script.as(String)
     end
@@ -83,6 +80,10 @@ module GitTrigger
     end
     CrystalTools.log " - [GitTrigger Server] :: Configuration file loaded successfuly", 2
     return config_obj
+  end
+
+  def self.reload_conifg
+    @@config = self.load_config
   end
 
   # Fiber:: monitoring a repo
@@ -286,9 +287,8 @@ module GitTrigger
     {"id"=> state[0], "url" => state[1], "last_commit" => state[2], "timestamp" => state[3]}.to_json
   end
 
-  
   # Reload config
   post "/config/reload" do |context|
-    @@config = self.load_config
+    spawn self.reload_conifg
   end
 end
