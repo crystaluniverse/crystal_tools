@@ -90,13 +90,11 @@ module GitTrigger
   # Pull each time interval
   # update loacal @@redis if there's any changes
   # schedule neph tasks if there's any updates; ile append then to @@jobs[repo_url]
-  # if run as main_watcher and repo not found any more, it terminates
-  # if run as non main watcher mens it is run as a result of notification coming from
-  # master that there's a change. in this case we check if repo exists before we 
-  # update state and exit as there's already another watcher that mighr being sleeping
-  # but if we found that this is a new repo. we need to update config, update config file
-  # and we keep this watcher running to monitor future updates for that repo as we know for sure
-  # that no other watchers running
+  # if run as main_watcher means it should not exit and keep watching repo
+  # if run as non main_watcherr means it was run as a trigger of a notification coming
+  # from server that a repo changed, and since there should be another main watcher running
+  # this watcher should update state and exits, leaving responsibility of watching repo
+  # to the main watcher which will wake up soon
   def self.monitor_repo(repo_url, main_watcher=true)
     spawn do
       loop do
@@ -107,14 +105,14 @@ module GitTrigger
           repo_urls << repo.url
         end
         # make sure repo should be monitored, and get current time interval
-        # if repo is no more there in config file, exit this fiber (unless main_watcher=false)
-        # if main_watcher is false we know that this fiber is run as a subsequence event 
-        # for a notification from master that there's a new repo added. so in this case, we need to keep running and
-        # not exiting as we know for sure that this repo has no other watchers
-        # if time interval for pulling changed, we use the new updated time
-
+        # if repo is no more there in config file, exit this fiber
+        # also in slave, if it received a notification about a repo change
+        # that does not exists in its config, it needs to exit this fiber
+        # thi happens if config was reloaded and this repo is no more tracked
+        # or if a slave got notification from master about an update from master
+        # for some repo that this slave is not tracking
         index = repo_urls.index(repo_url)
-        if index.nil? && main_watcher
+        if index.nil?
           CrystalTools.log " - [GitTrigger Server] :: Repo watcher terminated for #{repo_url}", 2
           break
         end
@@ -154,7 +152,9 @@ module GitTrigger
           self.notify_slaves repo_url
         end
         
-        if !main_watcher && !index.nil?
+        # break if running in a slave
+        # there's another one running, so no need for this
+        if !main_watcher
           break
         end
 
