@@ -7,23 +7,27 @@ A Git repos manger
 - Server reads config file
 - Server get all repos it need to manage from config file
 - Server spawns new fiber/watcher per repo which is triggered every #n seconds (specified in repo configuration)
-- when repo watcher is triggered it pulls, check local redis if it has same state of the repp and update if needed
-- If repo state is updated, it means there're new changes, server reads the `.crystal.do` watcher reads `main.yaml` neph file for that repo and execute locally in another fiber
-- subscribers/slaves are notified that there're new changes, so they can pull this repo and update their local state
-- we run same watcher code in slave in case of a new update with the parameter `only_once` and we do a check if repo didn't exist before meaning no other watchers watching it, we keep this watcher otherwise we terminate it 
+- when repo watcher is triggered each # n seconds it does the following
+    -  pull latest code for that repo
+    - check local redis and update with the latest state if new commit came along
+    - state is dictionary of `repo_url`, `last_commit hash`, `last commit timestamp`, `incremental id` which is increased by one each time we update state in reis
+    - If repo has new changes, scal `{repo_path}/,crystal.do` and find the starting yaml scripts there if any (configured in configuration file) and schedule them for execution
+    - watcher notify slaves (configured in config file) by making http post request to their `{domain}/repos/{repo_url}` so they know this repo has changed and they pull changes and watch that repo if not watched before
+- server upon starting also spawns job executor fiber that goes and execute all tasks scheduled locally
+- server provide an http end poing `GET {server}/repos/{repo_url}?last_change={number}` and returns
+    - `204` if no change
+    - `200` and body will be new state if there's a change
 
 #### Development
 
 
 - Start server `ct gittrigger start`
-- run ngrok if needed `ngrok http 8080` and get the URL
 
-#### subcommands
-- `subscribe`
-    - description: subscribe a local instance to remote server 
-    - command :  `ct gittrigger subscribe {remote_url}`
-    - mechanism: gets the server ID from `gittrigger.toml` and send it to the remote machine. remote machine config file will be updated/re-rewritten with the new subscriber
-    - testing: `ct gittrigger subscribe "http://127.0.0.1:8000"` this is to register the local isntance as slave in itself. (only for testing)
+#### Commands
+
+- `start`
+    - description: start gittrigger server
+    - command :  `ct gittrigger start`
 
 - `reload`
     - description: reload config file into the running local instance of gittrigger
