@@ -156,7 +156,7 @@ module CrystalTools
 
       if @path != ""
         url_on_fs = try_read_url_from_path()
-        # log url_on_fs
+        # log url_on_fs, 2
         # give url on fs priority
         # if @url != "" && @url != url_on_fs
         #   CrystalTools.error "url mismatch: #{@url} and #{url_on_fs}"
@@ -178,6 +178,8 @@ module CrystalTools
       # initialize the git environment, parse the separate properties
       parse_provider_account_repo()
 
+      log @url, 2
+
       if sshagent_loaded()
         if @url.starts_with?("http")
           change_to_ssh()
@@ -193,13 +195,15 @@ module CrystalTools
 
     # make sure we use ssh instead of https for pushing
     private def change_to_ssh
-      re = /url = https:.*/m
+      # re = /url = https:.*/m
       path_config = "#{@path}/.git/config"
-      if Dir.exists? path_config
-        CrystalTools.log "CHANGING TO SSH #{@url}", 2
+      CrystalTools.log "CHANGING TO SSH #{@url}", 2
+      CrystalTools.log "config path '#{path_config}''"
+      pp File.exists? path_config
+      if File.exists? path_config
         file_content = File.read path_config
         file_content = file_content.gsub(/url = https:.*/m, "url = #{url_as_ssh}")
-        # puts file_content
+        puts file_content
         File.write("#{@path}/.git/config", file_content)
       end
     end
@@ -366,6 +370,9 @@ module CrystalTools
       if res.includes?("Untracked files")
         return true
       end
+      if res.includes?("Your branch is ahead of")
+        push()
+      end      
       if res.includes?("nothing to commit")
         return false
       end
