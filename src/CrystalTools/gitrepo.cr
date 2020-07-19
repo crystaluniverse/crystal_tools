@@ -250,7 +250,7 @@ module CrystalTools
           @account = validm.not_nil!["account"].to_s
           @name = validm.not_nil!["repo"].to_s
           account_dir = dir_account_ensure()
-          path0 = File.join(account_dir, @name)
+          path0 = File.join(account_dir, @name.sub(".git", ""))
           CrystalTools.log "path0_http:#{account_dir}"
         end
         if path0 == ""
@@ -264,7 +264,7 @@ module CrystalTools
           @account = validm.not_nil!["account"].to_s
           @name = validm.not_nil!["repo"].to_s
           account_dir = dir_account_ensure()
-          path0 = File.join(account_dir, name)
+          path0 = File.join(account_dir, name.sub(".git", ""))
           CrystalTools.log "path0_git:#{account_dir}"
         end
         if path0 == ""
