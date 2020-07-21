@@ -22,7 +22,7 @@ module CrystalTools
       @path_code = Path["~/code"].expand(home: true).to_s
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
-      end      
+      end
       self.scan
     end
 
@@ -199,11 +199,9 @@ module CrystalTools
       path_config = "#{@path}/.git/config"
       CrystalTools.log "CHANGING TO SSH #{@url}", 2
       CrystalTools.log "config path '#{path_config}''"
-      pp File.exists? path_config
       if File.exists? path_config
         file_content = File.read path_config
         file_content = file_content.gsub(/url = https:.*/m, "url = #{url_as_ssh}")
-        puts file_content
         File.write("#{@path}/.git/config", file_content)
       end
     end
@@ -288,7 +286,7 @@ module CrystalTools
     # if branchname specified, check branchname is the same, if not and @branchswitch is True switch branch, otherwise error
     def pull(force = false, msg = "", interactive = true)
       CrystalTools.log " - Pull #{@path}", 2
-      ensure() # handles the cloning, existence and the correct branch already.
+      self.ensure # handles the cloning, existence and the correct branch already.
 
       if force
         reset()
@@ -308,7 +306,7 @@ module CrystalTools
     # will then reset to right branch & pull all changes
     # DANGEROUS: local changes will be overwritten
     def reset
-      ensure()
+      self.ensure
       `cd #{@path} && git clean -xfd && git checkout . && git checkout #{branch} && git pull`
       if !$?.success?
         raise "could not reset repo: #{@path}"
@@ -321,11 +319,17 @@ module CrystalTools
         account_dir = dir_account_ensure()
         if account_dir != ""
           CrystalTools.log "cloning into #{@path} (dir did not exist)"
-          if @depth != 0
-            Executor.exec("cd #{account_dir} && git clone #{@url} --depth=#{@depth}  && cd #{@name} && git fetch")
-          else
-            Executor.exec("cd #{account_dir} && git clone #{@url}")
+          cmd = "cd #{account_dir} && git clone #{@url}"
+
+          if @branch
+            cmd += " -b #{@branch}"
           end
+
+          if @depth != 0
+            cmd += " --depth=#{@depth}  && cd #{@name} && git fetch"
+          end
+
+          Executor.exec(cmd)
           pull()
           return File.join(account_dir, @name)
         end
@@ -350,7 +354,7 @@ module CrystalTools
 
     # commit the new info, automatically do an add of all files
     def commit(msg : String)
-      ensure()
+      self.ensure
       if @gitrepo_factory.interactive
         if msg == ""
           puts "Changes found in repo: #{@path}"
@@ -372,7 +376,7 @@ module CrystalTools
       end
       if res.includes?("Your branch is ahead of")
         push()
-      end      
+      end
       if res.includes?("nothing to commit")
         return false
       end
@@ -382,7 +386,7 @@ module CrystalTools
     # commit, pull, push
     def commit_pull_push(msg : String)
       # CrystalTools.log " - Pull/Push/Commit #{@path} : #{msg}", 2
-      ensure()
+      self.ensure
       # CrystalTools.log msg,3
       pull(msg: msg)
       push()
@@ -390,7 +394,7 @@ module CrystalTools
 
     def push
       CrystalTools.log " - Push #{@path}", 2
-      ensure()
+      self.ensure
       Executor.exec("cd #{@path} && git push")
     end
 
