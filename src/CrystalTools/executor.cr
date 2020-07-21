@@ -18,11 +18,11 @@ module CrystalTools
     end
 
     def self.exec_ok(cmd)
-      `#{cmd} 2>&1 &>/dev/null`
-      if !$?.success?
-        return false
-      end
-      true
+      `#{cmd} 2> /dev/null`
+       if $?.success?
+           return true
+       end
+       false
     end
 
     #   # def self._exec(cmd)
