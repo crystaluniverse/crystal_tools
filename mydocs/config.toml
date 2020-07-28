@@ -1,0 +1,17 @@
+#can be many wiki & many www sites
+
+[server]
+port = 3000
+addr = "0.0.0.0"
+
+[[wiki]]
+name = "crystaltools"
+title = "crystaltools"
+url = "git@github.com:crystaluniverse/crystaltools.git"
+path = ""
+autocommit = false
+branch = "master"
+branchswitch = false
+srcdir = "mydocs"
+environment = ""
+

@@ -1,4 +1,4 @@
-# do
+# neph
 
 > do is nothing more than neph bundled in, all credits to: https://github.com/tbrand/neph
 
@@ -53,3 +53,16 @@ export MYDIR=`ct git path -n threefoldfoundation`
 echo "'$MYDIR'"
 ```
 
+## more info
+
+- [Execute command from neph](execute_command_from_neph)
+- [Define dependencies between jobs](define_dependencies_between_jobs)
+- [Working directory](working_directory)
+- [Specify sources](specify_sources)
+- [Ignoring errors](ignoring_errors)
+- [Hide executing command](hide_executing_command)
+- [Set a job result to env vars](set_a_job_result_to_env_vars)
+- [Import other configurations](import_other_configurations)
+- [Command line options](command_line_options)
+- [Log locations](log_locations)
+- [Log modes](log_modes)
