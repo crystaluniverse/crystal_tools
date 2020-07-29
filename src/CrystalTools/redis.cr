@@ -192,7 +192,7 @@ module CrystalTools
     def self.core_exists
       begin
         cl = client_get()
-        # pp cl.ping()
+        cl.ping()
       rescue
         return false
       end
