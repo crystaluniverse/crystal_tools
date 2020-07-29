@@ -315,13 +315,14 @@ module CrystalTools
 
     # make sure the repository exists, if not will pull
     def ensure
+
       unless Dir.exists?(@path)
         account_dir = dir_account_ensure()
         if account_dir != ""
           CrystalTools.log "cloning into #{@path} (dir did not exist)"
           cmd = "cd #{account_dir} && git clone #{@url}"
 
-          if @branch
+          if @branch != ""
             cmd += " -b #{@branch}"
           end
 
