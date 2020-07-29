@@ -112,7 +112,7 @@ module CrystalTools
           if name == "home"
             name = Path[File.dirname(repo_dir)].basename.downcase
           end
-          CrystalTools.log("  ... #{name}:  #{repo_dir}", 1)
+          CrystalTools.log("  ... #{name}:  #{repo_dir}")
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
           if @repos[name]? != nil
             # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
@@ -178,7 +178,7 @@ module CrystalTools
       # initialize the git environment, parse the separate properties
       parse_provider_account_repo()
 
-      log @url, 2
+      # log @url, 2
 
       if sshagent_loaded()
         if @url.starts_with?("http")
@@ -197,7 +197,7 @@ module CrystalTools
     private def change_to_ssh
       # re = /url = https:.*/m
       path_config = "#{@path}/.git/config"
-      CrystalTools.log "CHANGING TO SSH #{@url}", 2
+      CrystalTools.log "CHANGING TO SSH #{@url}"
       CrystalTools.log "config path '#{path_config}''"
       if File.exists? path_config
         file_content = File.read path_config

@@ -343,6 +343,48 @@ module CrystalDo
           end
         end
       end
+
+      sub "web" do
+        desc "work with tfweb tools"
+        help short: "-h"
+        usage "ct git [cmd] [arguments]"
+        run do |opts, args|
+          puts opts.help_string
+        end
+
+        sub "start" do
+          usage "ct web start [options] "
+          desc "ideal to use as follows export MYDIR=`ct git path -n threefoldfoundation`"
+          option "-u WORD", "--url=WORD", type: String, required: false, default: ""
+          option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production", default: ""
+          option "-n WORD", "--name=WORD", type: String, desc: "Will look for destination in ~/code which has this name, if found will use it", default: ""
+          option "-d", "--default", type: Bool, desc: "Default web environment."
+
+          run do |opts, args|
+
+            if opts.default == true
+
+              cmd2 = "cd ~/code/github/crystaluniverse/publishingtools;tfweb -c ~/code/github/threefoldfoundation/websites/config.toml"
+              session = TMUXFactory.session_get(name: "default")
+              window = session.window_get(name: "tfweb")
+              window.execute cmd: cmd2, check: "", reset: true
+            else
+
+              gitrepo_factory = GITRepoFactory.new(environment: opts.env)
+              thereponame = opts.name
+              if opts.url != ""
+                r = gitrepo_factory.get(url: opts.url)
+                thereponame = r.name              
+              end
+              r = gitrepo_factory.get(name: thereponame)
+              pp r
+
+            end
+          end          
+        
+        end
+      end
+
     end
   end
 end
