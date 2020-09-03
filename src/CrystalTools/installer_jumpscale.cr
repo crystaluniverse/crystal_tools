@@ -34,7 +34,10 @@ module CrystalTools
       r = gf.get(url: "https://github.com/threefoldtech/js-sdk")
       r.pull() #TODO: wrong, does also a push which it should not do
 
-      pythonversion = Executor.exec("python -V", stdout: false)
+      args = Array(String).new
+      args << "-V"
+  
+      pythonversion = Executor.exec("python", args: args, stdout: false)
       CrystalTools.log pythonversion, 3
       if pythonversion.includes?("ython 2") 
         CrystalTools.error "default python should be python3"

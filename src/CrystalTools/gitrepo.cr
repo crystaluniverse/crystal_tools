@@ -213,7 +213,7 @@ module CrystalTools
 
     # fetch the url from git config, if not exist return ''
     private def try_read_url_from_path
-      Executor.exec("cd #{@path} && git config --get remote.origin.url", error_msg = "", stdout = true)
+      Executor.exec("cd #{@path} && git config --get remote.origin.url", error_msg: "", stdout: true)
     end
 
     # returns true if sshagent is loaded with at least 1 key
