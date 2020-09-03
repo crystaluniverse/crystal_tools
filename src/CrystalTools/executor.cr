@@ -51,24 +51,45 @@ module CrystalTools
         iserror = !$?.success?
       else
         # log "get stdout", 3
-        stdout = IO::Memory.new
+        stdout1,stdin1 = IO.pipe(read_blocking=false,write_blocking=false)
+        stdout2,stdin2 = IO.pipe(read_blocking=false,write_blocking=false)
+        
         cmd_arr = cmd.split
         cmd = cmd_arr[0]
         cmd_arr.shift
         
         args = nil
+        
         if cmd_arr.size > 0
           args = cmd_arr
         end
 
-        process = Process.new(cmd, args: args, shell: true, output: stdout)
+        spawn do
+          loop do
+            outputs = stdout1.gets
+            if outputs
+              CrystalTools.log "RES: '#{outputs}'", 2
+            end
+          end
+        end
+
+        spawn do
+          loop do
+            errors = stdout2.gets
+            if errors
+              CrystalTools.log "RES: '#{errors}'", 3
+            end
+          end
+        end
+
+        process = Process.new(cmd, args: args, shell: true, output: stdin1, error: stdin2)
         status_int = process.wait.exit_status
         if status_int == 1
           iserror = true
         end
         # stdout.flush
         # stdout.rewind
-        res = stdout.to_s
+        res = stdout1.to_s
         # `#{cmd} 2>&1 &>/dev/null`
         # res=""
       end
