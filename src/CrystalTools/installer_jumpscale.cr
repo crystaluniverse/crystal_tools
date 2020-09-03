@@ -9,7 +9,7 @@ module CrystalTools
 
     def self.install(reset = false)
 
-      log "check base install", 2
+      log "check base install"
       InstallerBase.install(reset: reset)
 
       if reset

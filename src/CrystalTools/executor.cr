@@ -50,7 +50,7 @@ module CrystalTools
         res = `#{cmd}`
         iserror = !$?.success?
       else
-        log "get stdout", 3
+        # log "get stdout", 3
         stdout = IO::Memory.new
         process = Process.new(cmd, shell: true, output: stdout)
         status_int = process.wait.exit_status
