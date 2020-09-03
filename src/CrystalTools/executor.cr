@@ -52,7 +52,16 @@ module CrystalTools
       else
         # log "get stdout", 3
         stdout = IO::Memory.new
-        process = Process.new(cmd, shell: true, output: stdout)
+        cmd_arr = cmd.split
+        cmd = cmd_arr[0]
+        cmd_arr.shift
+        
+        args = nil
+        if cmd_arr.size > 0
+          args = cmd_arr
+        end
+
+        process = Process.new(cmd, args: args, shell: true, output: stdout)
         status_int = process.wait.exit_status
         if status_int == 1
           iserror = true
