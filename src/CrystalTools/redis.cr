@@ -202,7 +202,7 @@ module CrystalTools
         return self.unserialize(ttype,data)
       else
         return data
-      else
+      end
     end
 
     #if key is "" then will reset all
