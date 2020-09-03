@@ -2,6 +2,11 @@ module CrystalTools
   HTTP_REPO_URL = /(https:\/\/)?(?P<provider>.+)(?P<suffix>\..+)\/(?P<account>.+)\/(?P<repo>.+)/
   SSH_REPO_URL  = /git@(?P<provider>.+)(?P<suffix>\..+)\:(?P<account>.+)\/(?P<repo>.+).git/
 
+  # struct GitConfig
+
+  # end
+  #msgpack serialize and put in redis 
+
   class GITRepoFactory
     property repos : Hash(String, GITRepo)
     property environment : String
@@ -11,7 +16,6 @@ module CrystalTools
 
     def initialize(@environment = "", path = "")
       @repos = {} of String => GITRepo
-      # if RedisFactory.done_get("test") == false
       @sshagent_loaded = Executor.exec_ok("ssh-add -l") #check if there is an sshagent
       if path == "."
         @path_find = Dir.current
