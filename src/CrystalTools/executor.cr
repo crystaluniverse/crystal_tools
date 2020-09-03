@@ -4,7 +4,7 @@ module CrystalTools
 
     def self.platform
       if @@_platform == ""
-        if Executor.cmd_exists_check("brew")
+        if Executor.cmd_exists_check("sw_vers")
           @@_platform = "osx"
         elsif Executor.cmd_exists_check("apt")
           @@_platform = "ubuntu"
@@ -50,12 +50,15 @@ module CrystalTools
         res = `#{cmd}`
         iserror = !$?.success?
       else
+        log "get stdout", 3
         stdout = IO::Memory.new
         process = Process.new(cmd, shell: true, output: stdout)
         status_int = process.wait.exit_status
         if status_int == 1
           iserror = true
         end
+        # stdout.flush
+        # stdout.rewind
         res = stdout.to_s
         # `#{cmd} 2>&1 &>/dev/null`
         # res=""
@@ -79,9 +82,13 @@ module CrystalTools
           CrystalTools.error "#{error_msg}", res
         end
       end
+      return res
     end
 
-    def self.package_install(name = "")
+    def self.package_install(name = "",expiration_check = 3600*24*7, reset = false)
+      if RedisFactory.done_check("package.install.#{name}") && reset == false
+        return
+      end
       if platform == "osx"
         exec "brew install #{name}"
       elsif platform == "ubuntu"
@@ -91,7 +98,26 @@ module CrystalTools
       else
         raise "platform not supported, only support osx, ubuntu & alpine"
       end
+      RedisFactory.done_set("package.install.#{name}", expiration: expiration_check)
     end
+
+    def self.package_upgrade(expiration_check = 3600*24*7, reset = false)
+      if RedisFactory.done_check("package.upgradeall") && reset == false
+        return
+      end
+      if platform == "osx"
+        exec "brew update"
+        exec "brew upgrade"
+      elsif platform == "ubuntu"
+        exec "apt update"
+        exec "apt upgrade -y"
+      elsif platform == "alpine"
+        CrystalTools.error "not implemented"
+      else
+        raise "platform not supported, only support osx, ubuntu & alpine"
+      end
+      RedisFactory.done_set("package.upgradeall", expiration: expiration_check)
+    end    
 
     def self.cmd_exists_check(cmd)
       `which #{cmd} 2>&1 > /dev/null`

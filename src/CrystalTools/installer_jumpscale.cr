@@ -1,112 +1,53 @@
 module CrystalTools
   class InstallerJumpscale
 
-    def install
-      redis = RedisFactory.core_get
-      pp Executor.platform
-      pp redis
-      pp Executor.cmd_exists_check("brew")
-      Executor.package_install "mc"
+    def self.poetry_uninstall()
+
+      pp `curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py > /tmp/get-poetry.py ; python3 /tmp/get-poetry.py --uninstall`
+
     end
 
-    def self.exec_ok(cmd)
-      `#{cmd} 2> /dev/null`
-       if $?.success?
-           return true
-       end
-       false
-    end
+    def self.install(reset = false)
 
-    #   # def self._exec(cmd)
-    #   #   out1,in1 = IO.pipe
-    #   #   out2,in2 = IO.pipe
-    #   #   s = Process.new(cmd,shell: true, output: in1, error: in2)
-    #   #   loop do
-    #   #       pp out1.gets
-    #   #       # if out1.peek
-    #   #       #     pp out1.gets
-    #   #       # end
-    #   #       # if out2.peek
-    #   #       #     pp out2.gets
-    #   #       # end
-    #   #       # sleep 0.001
-    #   #   end
-    #   # end
+      log "check base install", 2
+      InstallerBase.install(reset: reset)
 
-    def self.exec(cmd, error_msg = "", stdout = true, dolog = true, die = true)
-      iserror : Bool = false
-      if dolog
-        CrystalTools.log "EXEC: '#{cmd}'"
-      end
-      if stdout
-        res = `#{cmd}`
-        iserror = !$?.success?
-      else
-        stdout = IO::Memory.new
-        process = Process.new(cmd, shell: true, output: stdout)
-        status_int = process.wait.exit_status
-        if status_int == 1
-          iserror = true
+      if reset
+        RedisFactory.done_reset(prefix: "installer.")
+        if Executor.platform == "osx"
+          `rm -rf ~/Library/Caches/pypoetry`
         end
-        res = stdout.to_s
-        # `#{cmd} 2>&1 &>/dev/null`
-        # res=""
+      end      
+
+      if ! Executor.cmd_exists_check("poetry")
+        log "install poetry", 2
+        puts `curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3`
       end
 
-      res = res.chomp
-
-      if !iserror
-        if dolog
-          CrystalTools.log "RES: '#{res}'", 1
-        end
-        return res
-      else
-        if !die
-          return ""
-        end
-        # TODO: how can we read from the stderror
-        if error_msg == ""
-          CrystalTools.error "could not execute: \n#{cmd}\n**RES:**\n#{res}"
-        else
-          CrystalTools.error "#{error_msg}", res
-        end
+      if ! RedisFactory.done_check("installer.poetry.upgrade")
+        puts `poetry self update`
+        RedisFactory.done_set("installer.poetry.upgrade", expiration: 3600*48)
       end
-    end
+      
+      log "get code of jumpscale sdk", 2
 
-    def self.package_install(name = "")
-      if platform == "osx"
-        exec "brew install #{name}"
-      elsif platform == "ubuntu"
-        exec "apt install #{name} -y"
-      elsif platform == "alpine"
-        exec "apk install #{name}"
-      else
-        raise "platform not supported, only support osx, ubuntu & alpine"
+      gf=GITRepoFactory.new
+      r = gf.get(url: "https://github.com/threefoldtech/js-sdk")
+      r.pull() #TODO: wrong, does also a push which it should not do
+
+      pythonversion = Executor.exec("python -V", stdout: false)
+      log pythonversion, 3
+      if pythonversion.includes?("ython 2") 
+        error "default python should be python3"
       end
+      log "install poetry", 2
+      pp r.path
+
+      # redis = RedisFactory.core_get
+
+      
     end
 
-    def self.cmd_exists_check(cmd)
-      `which #{cmd} 2>&1 > /dev/null`
-      if !$?.success?
-        return false
-        # CrystalTools.error "#{cmd} not installed, cannot continue."
-      end
-      return true
-    end
-
-    macro exec2(cmd, error_msg = "", stdout = false)
-      {% if stdout == true %}
-        `{{cmd}}`
-      {% else %}
-      `{{cmd}} 2>&1 &>/dev/null`
-      {% end %}
-      if !$?.success?
-        {% if error_msg == "" %}
-        CrystalTools.error "could not execute: {{cmd}}"
-        {% else %}
-        CrystalTools.error "{{error_msg}}"
-        {% end %}
-      end    
-    end
   end
+
 end

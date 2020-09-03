@@ -28,8 +28,8 @@ end
 
 def jsinstall
 
-  # installer = InstallerJumpscale.new()
-  # installer.install()
+  
+  InstallerJumpscale.install(reset: false)
 
 
 
