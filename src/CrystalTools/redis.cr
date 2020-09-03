@@ -161,57 +161,33 @@ module CrystalTools
       @@sessions[nameL]
     end
 
-    def self.serialize(data : (Int32 | String | Bool | Nil) )
-      # io = IO::Memory.new()
-      # return val.to_msgpack(io).to_s
-      if data == "" || data == nil
-        return ""
-      else
-        return String.new(data.to_msgpack()) #is this correct?
-      end      
-    end
-
-    def self.unserialize(ttype, data : String)
-      # io = IO::Memory.new()
-      # io.from_s(val)
-      # return val.from_msgpack(io)
-      if data == ""
-        return nil
+    def self.serialize(data : Object |Int32 | String | Bool | Bytes | Nil)
+      if typeof(data) == Class
+        return data.to_msgpack
       end
-      io = IO::Memory.new(data.to_s)
-      a = ttype.from_msgpack(io)      
+      return data
     end
 
     #this is to remember what has already been done, normally we don't keep a value but can be useful to not have to redo a cmd
     #expiration default is not set
     def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : ( Int32 | String | Bool | Nil) = nil)
       cl = self.core_get
-      if val != nil
-        cl.set("done.#{key}", self.serialize(val), ex=expiration)
-      else
-        cl.set("done.#{key}", "1", ex=expiration)
-      end
+      cl.set("done.#{key}", val, ex=expiration)
     end
 
     #check if there a value and that it needs to be 1 (useful if no value)
     def self.done_check(key = "")
       cl = self.core_get
-      r = cl.get("done.#{key}")
-      if r=="1"
-        return true
-      else
-        return false
-      end
+      return cl.exists("done.#{key}") == 1
     end
 
-    def self.done_get(key = "",ttype = nil)
+    def self.done_get(key = "")
       cl = self.core_get
       data = cl.get("done.#{key}")
-      if ttype != nil
-        return self.unserialize(ttype,data)
-      else
-        return data
+      if data == ""
+        data = nil
       end
+      return data
     end
 
     #if key is "" then will reset all

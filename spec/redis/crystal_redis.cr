@@ -37,9 +37,18 @@ describe CrystalTools do
     RedisFactory.done_reset()
     RedisFactory.done_list("test.").size.should eq(0)
 
-    # RedisFactory.done_set("test",true)
-    
+    RedisFactory.serialize("hey").should eq("hey")
+    RedisFactory.serialize(3).should eq(3)
+    RedisFactory.serialize(true).should eq(true)
+    RedisFactory.serialize(false).should eq(false)
+    RedisFactory.serialize(nil).should eq(nil)    
 
+    RedisFactory.done_set("a")
+    RedisFactory.done_check("a").should eq(true)
+    RedisFactory.done_get("a").should eq(nil)
+    RedisFactory.done_set("b", val: 10)
+    RedisFactory.done_check("b").should eq(true)
+    RedisFactory.done_get("b").should eq("10")
   end
 
   it "jsonstor" do

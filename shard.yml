@@ -16,7 +16,7 @@ dependencies:
     github: crystal-community/toml.cr
     branch: master
   redis:
-    github: stefanwille/crystal-redis
+    github: crystaluniverse/crystal-redis
     version: ~> 2.6.0
   neph:
     github: tbrand/neph
@@ -33,7 +33,7 @@ dependencies:
     github: kemalcr/kemal
     branch: master
   msgpack:
-    github: crystal-community/msgpack-crystal    
+    github: crystal-community/msgpack-crystal
 
 crystal: 0.35.0
 
