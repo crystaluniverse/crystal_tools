@@ -154,9 +154,92 @@ module CrystalTools
         end
         # CrystalTools.log unixsocket
         # @@sessions[nameL] = RedisClient.new(host: host, port: port, unixsocket: unixsocket, password: password)
+        CrystalTools.log "INIT REDIS CLIENT"
         @@sessions[nameL] = RedisClient.new(host: host, unixsocket: unixsocket, password: password, pool_size: pool_size)
       end
       @@sessions[nameL]
+    end
+
+    def self.serialize(data : (Nil | Int32 | String | Bool) = nil )
+      # io = IO::Memory.new()
+      # return val.to_msgpack(io).to_s
+      if data == ""
+        return ""
+      end      
+      return String.new(data.to_msgpack()) #is this correct?
+    end
+
+    def self.unserialize(ttype, data : String)
+      # io = IO::Memory.new()
+      # io.from_s(val)
+      # return val.from_msgpack(io)
+      if data == ""
+        return nil
+      end
+      io = IO::Memory.new(data.to_s)
+      a = ttype.from_msgpack(io)      
+    end
+
+    #expiration default is not set
+    def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : (Nil | Int32 | String | Bool) = nil)
+      cl = self.core_get
+      if val != nil
+        cl.set("done.#{key}", self.serialize(val), ex=expiration)
+      else
+        cl.set("done.#{key}", "1", ex=expiration)
+      end
+    end
+
+    def self.done_exists(key = "")
+      cl = self.core_get
+      return cl.exists("done.#{key}")
+    end
+
+    def self.done_get(key = "",ttype = nil)
+      cl = self.core_get
+      data = cl.get("done.#{key}")
+      if ttype != nil
+        return self.unserialize(ttype,data)
+      else
+        return data
+      else
+    end
+
+    #if key is "" then will reset all
+    def self.done_reset(key = "", prefix = "")
+      cl = self.core_get
+      if key == ""
+        if prefix == ""
+          ks=cl.keys("done.*")
+        else
+          ks=cl.keys("done.#{prefix}*")
+        end
+        ks.each do |key|
+          cl.del(key.to_s)
+        end
+      else
+        cl.del("done.#{key}")
+      end
+    end
+
+    def self.done_list(prefix = "")
+      cl = self.core_get
+      r = [] of String
+      if prefix == ""
+        ks=cl.keys("done.*")
+      else
+        ks=cl.keys("done.#{prefix}*")
+      end
+      ks.each do |key|
+        r << key.to_s
+      end
+      return r
+    end    
+
+    #reset the redis core db, remove all
+    def self.core_reset
+      cl = self.core_get
+      cl.flushall  
     end
 
     # start redis server if not done yet
@@ -177,9 +260,9 @@ module CrystalTools
         if !core_exists
           CrystalTools.log "core redis does not exist yet", 2
           # test redis exists
-          if Executor.platform == "osx"
-            Executor.exec "sysctl vm.overcommit_memory=1"
-          end
+          # if Executor.platform == "osx"
+          #   Executor.exec "sysctl vm.overcommit_memory=1"
+          # end
           Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
           sleep 0.1
         end

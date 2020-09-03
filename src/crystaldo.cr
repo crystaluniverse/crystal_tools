@@ -311,6 +311,31 @@ module CrystalDo
         end
       end
 
+      sub "install" do
+        help short: "-h"
+        desc "install tools"
+        usage "ct install [cmd] [options]"
+        run do |opts, args|
+          puts opts.help_string
+        end
+
+        sub "jumpscale" do
+          help short: "-h"
+          usage "ct install jumpscale [options]"
+          desc "install jumpscale"
+
+          option "-b WORD", "--branch=WORD", type: String, desc: "Log modes [NORMAL/CI/QUIET/AUTO]", default: "development"
+          option "-e WORD", "--exec-mode=WORD", type: String, desc: "Execution modes [parallel/sequential]", default: "parallel"
+          argument "config", type: String, required: true, desc: "configuration file path"
+
+          run do |opts, args|
+            installer = InstallerJumpscale.new 
+            installer.install()
+          end
+        end
+
+      end      
+
       sub "gittrigger" do
         help short: "-h"
         desc "work with git trigger"

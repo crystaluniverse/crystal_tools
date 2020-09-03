@@ -28,6 +28,10 @@ shards:
     git: https://github.com/jeromegn/kilt.git
     version: 0.4.0
 
+  msgpack:
+    git: https://github.com/crystal-community/msgpack-crystal.git
+    version: 0.17.1
+
   neph:
     git: https://github.com/tbrand/neph.git
     version: 0.2.12

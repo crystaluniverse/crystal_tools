@@ -11,7 +11,8 @@ module CrystalTools
 
     def initialize(@environment = "", path = "")
       @repos = {} of String => GITRepo
-      @sshagent_loaded = Executor.exec_ok("ssh-add -l")
+      # if RedisFactory.done_get("test") == false
+      @sshagent_loaded = Executor.exec_ok("ssh-add -l") #check if there is an sshagent
       if path == "."
         @path_find = Dir.current
       elsif path == ""

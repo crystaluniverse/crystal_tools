@@ -26,7 +26,17 @@ def pull1
 
 end
 
+def jsinstall
+
+  # installer = InstallerJumpscale.new()
+  # installer.install()
+
+
+
+end
 
 
 # changes()
-pull1
+# pull1
+
+jsinstall

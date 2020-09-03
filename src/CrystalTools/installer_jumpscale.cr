@@ -1,20 +1,12 @@
 module CrystalTools
-  class Executor
-    @@_platform : String = ""
+  class InstallerJumpscale
 
-    def self.platform
-      if @@_platform == ""
-        if Executor.cmd_exists_check("brew")
-          @@_platform = "osx"
-        elsif Executor.cmd_exists_check("apt")
-          @@_platform = "ubuntu"
-        elsif Executor.cmd_exists_check("apk")
-          @@_platform = "alpine"
-        else
-          raise "only ubuntu, alpine and osx supported for now"
-        end
-      end
-      return @@_platform
+    def install
+      redis = RedisFactory.core_get
+      pp Executor.platform
+      pp redis
+      pp Executor.cmd_exists_check("brew")
+      Executor.package_install "mc"
     end
 
     def self.exec_ok(cmd)
