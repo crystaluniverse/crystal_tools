@@ -34,14 +34,18 @@ module CrystalTools
       r = gf.get(url: "https://github.com/threefoldtech/js-sdk")
       r.pull() #TODO: wrong, does also a push which it should not do
 
-      pythonversion = Executor.exec("python -V", stdout: false)
+
+      pythonversion = Executor.exec("python --version", stdout: false)
       CrystalTools.log pythonversion, 3
       if pythonversion.includes?("ython 2") 
-        CrystalTools.error "default python should be python3"
+        CrystalTools.error "default python should be python3, fix your os"
+
       end
       CrystalTools.log "install poetry", 2
       pp r.path
 
+      `cd #{r.path} && poetry update`
+      `cd #{r.path} && poetry update`
       # redis = RedisFactory.core_get
 
       

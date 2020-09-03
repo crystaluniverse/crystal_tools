@@ -28,7 +28,7 @@ end
 
 def jsinstall
 
-  
+
   InstallerJumpscale.install(reset: false)
 
 
