@@ -1,4 +1,5 @@
 require "redis"
+require "msgpack"
 
 module CrystalTools
   class RedisClient < Redis::PooledClient
@@ -160,13 +161,14 @@ module CrystalTools
       @@sessions[nameL]
     end
 
-    def self.serialize(data : (Nil | Int32 | String | Bool) = nil )
+    def self.serialize(data : (Int32 | String | Bool) )
       # io = IO::Memory.new()
       # return val.to_msgpack(io).to_s
-      if data == ""
+      if data == "" || data == nil
         return ""
+      else
+        return String.new(data.to_msgpack()) #is this correct?
       end      
-      return String.new(data.to_msgpack()) #is this correct?
     end
 
     def self.unserialize(ttype, data : String)
@@ -180,19 +182,26 @@ module CrystalTools
       a = ttype.from_msgpack(io)      
     end
 
+    #this is to remember what has already been done, normally we don't keep a value but can be useful to not have to redo a cmd
     #expiration default is not set
-    def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : (Nil | Int32 | String | Bool) = nil)
+    def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : ( Int32 | String | Bool) = "")
       cl = self.core_get
-      if val != nil
+      if val != ""
         cl.set("done.#{key}", self.serialize(val), ex=expiration)
       else
         cl.set("done.#{key}", "1", ex=expiration)
       end
     end
 
-    def self.done_exists(key = "")
+    #check if there a value and that it needs to be 1 (useful if no value)
+    def self.done_check(key = "")
       cl = self.core_get
-      return cl.exists("done.#{key}")
+      r = cl.get("done.#{key}")
+      if r=="1"
+        return true
+      else
+        return false
+      end
     end
 
     def self.done_get(key = "",ttype = nil)

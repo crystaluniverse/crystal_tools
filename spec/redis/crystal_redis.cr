@@ -19,13 +19,13 @@ describe CrystalTools do
 
     # epoch = Time.local.to_unix()
 
-    RedisFactory.done_get("test").should eq(false)
+    RedisFactory.done_check("test").should eq(false)
     RedisFactory.done_set("test")
     RedisFactory.done_set("tee")
-    RedisFactory.done_get("test").should eq(true)
+    RedisFactory.done_check("test").should eq(true)
 
     RedisFactory.done_reset("test")
-    RedisFactory.done_get("test").should eq(false)
+    RedisFactory.done_check("test").should eq(false)
 
     (0..5).each do |nr|
       RedisFactory.done_set("test.#{nr}",1)
@@ -37,7 +37,7 @@ describe CrystalTools do
     RedisFactory.done_reset()
     RedisFactory.done_list("test.").size.should eq(0)
 
-    RedisFactory.done_set("test",true)
+    # RedisFactory.done_set("test",true)
     
 
   end
