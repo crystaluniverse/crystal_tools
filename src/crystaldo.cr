@@ -329,8 +329,7 @@ module CrystalDo
           argument "config", type: String, required: true, desc: "configuration file path"
 
           run do |opts, args|
-            installer = InstallerJumpscale.new 
-            installer.install()
+            installer = InstallerJumpscale.install()
           end
         end
 
