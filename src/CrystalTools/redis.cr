@@ -161,7 +161,7 @@ module CrystalTools
       @@sessions[nameL]
     end
 
-    def self.serialize(data : (Int32 | String | Bool) )
+    def self.serialize(data : (Int32 | String | Bool | Nil) )
       # io = IO::Memory.new()
       # return val.to_msgpack(io).to_s
       if data == "" || data == nil
@@ -184,9 +184,9 @@ module CrystalTools
 
     #this is to remember what has already been done, normally we don't keep a value but can be useful to not have to redo a cmd
     #expiration default is not set
-    def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : ( Int32 | String | Bool) = "")
+    def self.done_set(key = "", expiration : (Nil | Int32) = nil, val : ( Int32 | String | Bool | Nil) = nil)
       cl = self.core_get
-      if val != ""
+      if val != nil
         cl.set("done.#{key}", self.serialize(val), ex=expiration)
       else
         cl.set("done.#{key}", "1", ex=expiration)
