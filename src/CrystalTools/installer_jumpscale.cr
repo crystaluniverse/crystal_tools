@@ -32,10 +32,9 @@ module CrystalTools
 
       gf=GITRepoFactory.new
       r = gf.get(url: "https://github.com/threefoldtech/js-sdk")
-      r.pull() #TODO: wrong, does also a push which it should not do
+      # r.pull() #TODO: wrong, does also a push which it should not do
 
-
-      pythonversion = Executor.exec("python --version", stdout: false)
+      pythonversion = Executor.exec("python -V", stdout: false)
       CrystalTools.log pythonversion, 3
       if pythonversion.includes?("ython 2") 
         CrystalTools.error "default python should be python3, fix your os"

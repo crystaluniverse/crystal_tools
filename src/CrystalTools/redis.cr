@@ -234,7 +234,7 @@ module CrystalTools
 
         if !Executor.cmd_exists_check "redis-cli"
           if Executor.platform == "osx"
-            Executor.exec "brew unlink redis", die = false
+            Executor.exec "brew unlink redis", die: false
             Executor.exec "brew install redis"
             Executor.exec "brew link redis"
           else

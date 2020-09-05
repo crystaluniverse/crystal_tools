@@ -41,18 +41,24 @@ module CrystalTools
     #   #   end
     #   # end
 
-    def self.exec(cmd, error_msg = "", stdout = true, dolog = true, die = true)
+    def self.exec(cmd, args = nil, error_msg = "", stdout = true, dolog = true, die = true)
       iserror : Bool = false
       if dolog
         CrystalTools.log "EXEC: '#{cmd}'"
       end
       if stdout
-        res = `#{cmd}`
+        if args == nil
+          res = `#{cmd}`
+        else
+          res = `#{cmd} #{args.not_nil!.join(" ")}`
+        end
+        res = `#{cmd} #{args}`
         iserror = !$?.success?
       else
-        # log "get stdout", 3
+        CrystalTools.log "get stdout", 3
         stdout = IO::Memory.new
-        process = Process.new(cmd, shell: true, output: stdout)
+        pp! args
+        process = Process.new(cmd, args: args, shell: true, output: stdout)
         status_int = process.wait.exit_status
         if status_int == 1
           iserror = true
