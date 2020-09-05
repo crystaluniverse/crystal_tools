@@ -8,8 +8,7 @@ module CrystalTools
     end
 
     def self.install(reset = false)
-
-      log "check base install", 2
+      CrystalTools.log "check base install", 2
       InstallerBase.install(reset: reset)
 
       if reset
@@ -20,7 +19,7 @@ module CrystalTools
       end      
 
       if ! Executor.cmd_exists_check("poetry")
-        log "install poetry", 2
+        CrystalTools.log "install poetry", 2
         puts `curl -sSL https://raw.githubusercontent.com/python-poetry/poetry/master/get-poetry.py | python3`
       end
 
@@ -29,18 +28,18 @@ module CrystalTools
         RedisFactory.done_set("installer.poetry.upgrade", expiration: 3600*48)
       end
       
-      log "get code of jumpscale sdk", 2
+      CrystalTools.log "get code of jumpscale sdk", 2
 
       gf=GITRepoFactory.new
       r = gf.get(url: "https://github.com/threefoldtech/js-sdk")
       r.pull() #TODO: wrong, does also a push which it should not do
 
-      pythonversion = Executor.exec("python --version", stdout: false)
-      log pythonversion, 3
+      pythonversion = Executor.exec("python -V", stdout: false)
+      CrystalTools.log pythonversion, 3
       if pythonversion.includes?("ython 2") 
-        error "default python should be python3, fix your os"
+        CrystalTools.error "default python should be python3"
       end
-      log "install poetry", 2
+      CrystalTools.log "install poetry", 2
       pp r.path
 
       `cd #{r.path} && poetry update`
