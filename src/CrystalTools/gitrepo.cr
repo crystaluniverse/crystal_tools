@@ -8,14 +8,23 @@ module CrystalTools
   #msgpack serialize and put in redis 
 
   class GITRepoFactory
-    property repos : Hash(String, GITRepo)
+    @@scanned : Bool = false
+    @@repos = {} of String => GITRepo
+
     property environment : String
     property path_find : String
     property path_code : String
     property interactive = true
 
+    def get_repos
+      @@repos
+    end
+
+    def self.scanned?
+      @@scanned
+    end
+
     def initialize(@environment = "", path = "")
-      @repos = {} of String => GITRepo
       @sshagent_loaded = Executor.exec_ok("ssh-add -l") #check if there is an sshagent
       if path == "."
         @path_find = Dir.current
@@ -28,7 +37,11 @@ module CrystalTools
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
       end
-      self.scan
+      
+      if !@@scanned
+        CrystalTools.log "Scanning repos", 2
+        self.scan
+      end
     end
 
     # go from comma separated names to repo names, or if not specified go to the current dir
@@ -43,7 +56,7 @@ module CrystalTools
           name = Path[path].basename
           names = [name]
         else
-          names = @repos.keys
+          names = @@repos.keys
         end
       else
         names = [name]
@@ -69,13 +82,13 @@ module CrystalTools
       end
 
       if name != ""
-        if @repos.empty?
+        if @@repos.empty?
           CrystalTools.log "need to scan because we don't know which repo's exist"
           scan()
         end
 
-        if @repos.has_key?(nameL)
-          return @repos[nameL]
+        if @@repos.has_key?(nameL)
+          return @@repos[nameL]
         end
       end
 
@@ -90,7 +103,7 @@ module CrystalTools
       end
 
       gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth
-      repos[nameL] = gr
+      @@repos[nameL] = gr
       gr.ensure
       gr
     end
@@ -106,7 +119,6 @@ module CrystalTools
     # is done is a very specific way, first provider dirs, then account dirs then repo dirs
     # is fast because only checks the possible locations
     protected def scan
-      @repos_path = {} of String => String
       name = ""
       Dir.glob("#{@path_find}/**/*/.git").each do |repo_path|
         # make sure dir's starting with _ are skipped (e.g. can be used for backup)
@@ -119,13 +131,13 @@ module CrystalTools
           end
           CrystalTools.log("  ... #{name}:  #{repo_dir}")
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
-          if @repos[name]? != nil
-            # r1 = GITRepo.new gitrepo_factory: self, path: @repos_path[name]
-            CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@repos[name].path} and #{repo_dir}"
+          if @@repos[name]? != nil
+            CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@@repos[name].path} and #{repo_dir}"
           end
-          @repos[name] = repo
+          @@repos[name] = repo
         end
       end
+      @@scanned = true
     end
   end
 
