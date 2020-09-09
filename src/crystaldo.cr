@@ -95,10 +95,12 @@ module CrystalDo
           usage "ct git list [options] "
           desc "list repos"
           option "-e WORD", "--env=WORD", type: String, desc: "environment can be e.g. testing, production.", default: ""
+          option "-r", "--reload", type: Bool, desc: "Force reload repos from filesystem", default: false
+         
           argument "path", type: String, desc: "path to start from", default: ""
 
           run do |opts, args|
-            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
+            gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path, reload: opts.reload)
             gitrepo_factory.repos.each do |name,r|
               puts " - #{r.name.ljust(30)} : #{r.path}"
             end        

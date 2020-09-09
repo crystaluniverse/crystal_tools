@@ -57,7 +57,7 @@ module CrystalTools
       result
     end
 
-    def initialize(@environment = "", path = "")
+    def initialize(@environment = "", path = "", reload=false)
       @sshagent_loaded = Executor.exec_ok("ssh-add -l") #check if there is an sshagent
       if path == "."
         @path_find = Dir.current
@@ -70,7 +70,7 @@ module CrystalTools
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
       end
-      if !self.scanned
+      if reload || !self.scanned
         CrystalTools.log "Scanning repos", 2
         self.scan
         self.set_scanned
