@@ -19,25 +19,25 @@ module CrystalTools
     
 
     def scanned
-      @@redis.get("gitrepos::scanned") == "true"
+      @@redis.get("gitrepos::scanned::#{@path_code}") == "true"
     end
 
     def set_scanned
-      @@redis.set("gitrepos::scanned", true)
+      @@redis.set("gitrepos::scanned::#{@path_code}", true)
     end
 
     def add(reponame, repo)
-      CrystalTools.log "-  Caching repo (#{reponame})", 2
-      @@redis.hset("gitrepos::repos", reponame, repo)
+      CrystalTools.log "GITREPOS -cache @#{@path_code}", 2
+      @@redis.hset("gitrepos::repos::#{@path_code}", reponame, repo)
     end
 
     def remove(reponame)
-      CrystalTools.log "-  Remove repo (#{reponame}) from Cache", 2
-      @@redis.hdel("gitrepos::repos", reponame)
+      CrystalTools.log "GITREPOS -load from cache @#{@path_code}", 2
+      @@redis.hdel("gitrepos::repos::#{@path_code}", reponame)
     end
 
     def repos
-      data = @@redis.hgetall("gitrepos::repos")
+      data = @@redis.hgetall("gitrepos::repos::#{@path_code}")
       result = Hash(String, GITRepo).new
       i = 0
       j = 1
@@ -70,10 +70,13 @@ module CrystalTools
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
       end
+
       if reload || !self.scanned
-        CrystalTools.log "Scanning repos", 2
+        CrystalTools.log "GITREPOS -scan filesystem @#{@path_code}", 2
         self.scan
         self.set_scanned
+      else
+        CrystalTools.log "GITREPOS -load from cache @#{@path_code}", 2
       end
     end
 
