@@ -102,7 +102,7 @@ module CrystalDo
           run do |opts, args|
             gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path, reload: opts.reload)
             gitrepo_factory.repos.each do |name,r|
-              puts " - #{r.name.ljust(30)} : #{r.path}"
+              puts "\n\n - #{r.name.ljust(25)} : #{r.path}"
             end        
           end
         end        

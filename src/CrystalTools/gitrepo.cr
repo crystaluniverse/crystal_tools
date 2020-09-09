@@ -27,7 +27,7 @@ module CrystalTools
     end
 
     def add(reponame, repo)
-      CrystalTools.log "GITREPOS -cache @#{@path_code}", 2
+      CrystalTools.log "GITREPOS -cache @#{@path_code}/#{reponame}", 2
       @@redis.hset("gitrepos::repos::#{@path_code}", reponame, repo)
     end
 
@@ -67,6 +67,8 @@ module CrystalTools
         @path_find = path
       end
       @path_code = Path["~/code"].expand(home: true).to_s
+      
+      
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
       end
@@ -119,7 +121,7 @@ module CrystalTools
 
       if name != ""
         if self.repos.empty?
-          CrystalTools.log "need to scan because we don't know which repo's exist"
+          CrystalTools.log "GITREPOS -scan because we don't know which repo's exist"
           scan()
         end
 
@@ -155,10 +157,10 @@ module CrystalTools
     # is done is a very specific way, first provider dirs, then account dirs then repo dirs
     # is fast because only checks the possible locations
     protected def scan
-      CrystalTools.log("Scanning git repos from file system")
+      
       repos = {} of String => GITRepo
       name = ""
-      Dir.glob("#{@path_find}/**/*/.git").each do |repo_path|
+      Dir.glob("#{@path_code}/**/*/.git").each do |repo_path|
         # make sure dir's starting with _ are skipped (e.g. can be used for backup)
         if !repo_path.includes? "/_"
           repo_dir = File.dirname(repo_path)
@@ -167,7 +169,7 @@ module CrystalTools
           if name == "home"
             name = Path[File.dirname(repo_dir)].basename.downcase
           end
-          CrystalTools.log("  ... #{name}:  #{repo_dir}")
+          CrystalTools.log("GITREPOS -load #{repo_dir}", 2)
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
           if repos[name]? != nil
             CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{repos[name].path} and #{repo_dir}"
@@ -175,6 +177,7 @@ module CrystalTools
           repos[name] = repo
         end
       end
+
       repos.each do |reponame, repo|
         self.add(reponame, String.new(repo.to_msgpack))
       end
@@ -345,7 +348,7 @@ module CrystalTools
     # if there is data in there, ask to commit, ask message if @autocommit is on
     # if branchname specified, check branchname is the same, if not and @branchswitch is True switch branch, otherwise error
     def pull(force = false, msg = "", interactive = true)
-      CrystalTools.log " - Pull #{@path}", 2
+      CrystalTools.log "GITREPOS -pull #{@path}", 2
       self.ensure # handles the cloning, existence and the correct branch already.
 
       if force
@@ -379,7 +382,7 @@ module CrystalTools
       unless Dir.exists?(@path)
         account_dir = dir_account_ensure()
         if account_dir != ""
-          CrystalTools.log "cloning into #{@path} (dir did not exist)"
+          CrystalTools.log "GITREPOS -clone #{@path} (dir did not exist)"
           cmd = "cd #{account_dir} && git clone #{@url}"
 
           if @branch != ""
@@ -428,7 +431,7 @@ module CrystalTools
           Executor.exec("cd #{@path} && git add . -A && git commit -m \"#{msg}\"")
         end
       else
-        CrystalTools.log " - make sure to enable interactive to be able to commit changes in #{@path}", 2
+        CrystalTools.log "GITREPOS -commit abored, please enable interactive mode to commit in #{@path}", 2
       end
     end
 
@@ -448,28 +451,26 @@ module CrystalTools
 
     # commit, pull, push
     def commit_pull_push(msg : String)
-      # CrystalTools.log " - Pull/Push/Commit #{@path} : #{msg}", 2
       self.ensure
-      # CrystalTools.log msg,3
       pull(msg: msg)
       push()
     end
 
     def push
-      CrystalTools.log " - Push #{@path}", 2
+      CrystalTools.log "GITREPOS -push #{@path}", 2
       self.ensure
       Executor.exec("cd #{@path} && git push")
     end
 
     # last commit
     def head
-      CrystalTools.log " - Git HEAD #{@path}", 2
+      CrystalTools.log "GITREPOS -head #{@path}", 2
       Executor.exec("cd #{@path} && git rev-parse HEAD")
     end
 
     # timestamp of commit
     def timestamp(commit)
-      CrystalTools.log " - Git #{@path} timestamp for commit #{commit}", 2
+      CrystalTools.log "GITREPOS -timestamp repo: #{@path} commit: #{commit}", 2
       Executor.exec("cd #{@path} && git show -s --format=%ct #{commit}")
     end
   end
