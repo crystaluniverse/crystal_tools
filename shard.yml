@@ -31,7 +31,7 @@ dependencies:
     version: 0.12.0
   kemal:
     github: kemalcr/kemal
-    branch: master
+    commit: a8c0f09b858162bd13c96663febef5527b322a32
   msgpack:
     github: crystal-community/msgpack-crystal
 

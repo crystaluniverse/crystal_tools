@@ -27,10 +27,12 @@ module CrystalTools
     end
 
     def add(reponame, repo)
+      CrystalTools.log "Adding repo #{reponame} to cache", 2
       @@redis.hset("gitrepos::repos", reponame, repo)
     end
 
     def remove(reponame)
+      CrystalTools.log "Removing repo #{reponame} to cache", 2
       @@redis.hdel("gitrepos::repos", reponame)
     end
 
