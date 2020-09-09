@@ -66,7 +66,7 @@ module CrystalDo
 
           run do |opts, args|
             gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
-            gitrepo_factory.get_repos.each do |name2, r|
+            gitrepo_factory.repos.each do |name2, r|
               if r.changes
                 puts " - #{r.name.ljust(30)} : #{r.path} (CHANGED)"
               end
@@ -99,7 +99,7 @@ module CrystalDo
 
           run do |opts, args|
             gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path)
-            gitrepo_factory.get_repos.each do |name,r|
+            gitrepo_factory.repos.each do |name,r|
               puts " - #{r.name.ljust(30)} : #{r.path}"
             end        
           end

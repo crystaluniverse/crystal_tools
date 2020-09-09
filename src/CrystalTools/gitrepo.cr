@@ -1,3 +1,5 @@
+require "msgpack"
+
 module CrystalTools
   HTTP_REPO_URL = /(https:\/\/)?(?P<provider>.+)(?P<suffix>\..+)\/(?P<account>.+)\/(?P<repo>.+)/
   SSH_REPO_URL  = /git@(?P<provider>.+)(?P<suffix>\..+)\:(?P<account>.+)\/(?P<repo>.+).git/
@@ -7,21 +9,50 @@ module CrystalTools
   # end
   #msgpack serialize and put in redis 
 
-  class GITRepoFactory
-    @@scanned : Bool = false
-    @@repos = {} of String => GITRepo
+  class GITRepoFactory   
+    @@redis : CrystalTools::RedisClient =  RedisFactory.core_get()
 
     property environment : String
     property path_find : String
     property path_code : String
     property interactive = true
+    
 
-    def get_repos
-      @@repos
+    def scanned
+      @@redis.get("gitrepos::scanned") == "true"
     end
 
-    def self.scanned?
-      @@scanned
+    def set_scanned
+      @@redis.set("gitrepos::scanned", true)
+    end
+
+    def add(reponame, repo)
+      @@redis.hset("gitrepos::repos", reponame, repo)
+    end
+
+    def remove(reponame)
+      @@redis.hdel("gitrepos::repos", reponame)
+    end
+
+    def repos
+      data = @@redis.hgetall("gitrepos::repos")
+      result = Hash(String, GITRepo).new
+      i = 0
+      j = 1
+      data.each do |item|
+        if j > data.size
+          break
+        end
+
+        reponame = data[i].as(String)
+        repo = data[j].as(String)
+        repo_obj = GITRepo.from_msgpack(repo.to_slice)
+        repo_obj.gitrepo_factory = self
+        result[reponame] = repo_obj 
+        i +=2
+        j += 2
+      end
+      result
     end
 
     def initialize(@environment = "", path = "")
@@ -37,10 +68,10 @@ module CrystalTools
       if @environment != ""
         @path_code = "#{@path_code}_#{@environment}"
       end
-      
-      if !@@scanned
+      if !self.scanned
         CrystalTools.log "Scanning repos", 2
         self.scan
+        self.set_scanned
       end
     end
 
@@ -56,7 +87,7 @@ module CrystalTools
           name = Path[path].basename
           names = [name]
         else
-          names = @@repos.keys
+          names = self.repos.keys
         end
       else
         names = [name]
@@ -82,13 +113,13 @@ module CrystalTools
       end
 
       if name != ""
-        if @@repos.empty?
+        if self.repos.empty?
           CrystalTools.log "need to scan because we don't know which repo's exist"
           scan()
         end
 
-        if @@repos.has_key?(nameL)
-          return @@repos[nameL]
+        if self.repos.has_key?(nameL)
+          return self.repos[nameL]
         end
       end
 
@@ -103,7 +134,7 @@ module CrystalTools
       end
 
       gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth
-      @@repos[nameL] = gr
+      self.repos[nameL] = gr
       gr.ensure
       gr
     end
@@ -119,6 +150,8 @@ module CrystalTools
     # is done is a very specific way, first provider dirs, then account dirs then repo dirs
     # is fast because only checks the possible locations
     protected def scan
+      CrystalTools.log("Scanning git repos from file system")
+      repos = {} of String => GITRepo
       name = ""
       Dir.glob("#{@path_find}/**/*/.git").each do |repo_path|
         # make sure dir's starting with _ are skipped (e.g. can be used for backup)
@@ -131,19 +164,24 @@ module CrystalTools
           end
           CrystalTools.log("  ... #{name}:  #{repo_dir}")
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
-          if @@repos[name]? != nil
-            CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{@@repos[name].path} and #{repo_dir}"
+          if repos[name]? != nil
+            CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{repos[name].path} and #{repo_dir}"
           end
-          @@repos[name] = repo
+          repos[name] = repo
         end
       end
-      @@scanned = true
+      repos.each do |reponame, repo|
+        self.add(reponame, String.new(repo.to_msgpack))
+      end
     end
   end
 
   # represents 1 specific repo on git, http & ssh can be used for updating the info
   # have nice enduser friendly operational message when it doesn't work
   class GITRepo
+    
+    include MessagePack::Serializable
+
     property name : String
     property path : String
     property url : String
@@ -155,18 +193,20 @@ module CrystalTools
     property provider_suffix = ".com"
     property environment = ""
     property depth = 0
-    property gitrepo_factory : GITRepoFactory
+
+    @[MessagePack::Field(ignore: true)]
+    property gitrepo_factory : GITRepoFactory? = nil
+    
     property pulled = false
 
-    include CrystalTools
-
+       
     def to_s
       "GitRepo<#{@name} at #{@path}>"
     end
 
     def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @depth = 0)
       if @path == "" && @url == ""
-        error "path and url are empty #{name}"
+        CrystalTools.error "path and url are empty #{name}"
       end
 
       Executor.cmd_exists_check "git"
@@ -189,13 +229,11 @@ module CrystalTools
           @url = "https://#{@url}"
         end
       else
-        error "cannot initialize git repository if url not given: #{url}"
+        CrystalTools.error "cannot initialize git repository if url not given: #{url}"
       end
 
       # initialize the git environment, parse the separate properties
       parse_provider_account_repo()
-
-      # log @url, 2
 
       if sshagent_loaded()
         if @url.starts_with?("http")
@@ -206,8 +244,8 @@ module CrystalTools
         @url = url_as_https
       end
 
-      log "git repo on: #{@path}"
-      log "git url: #{@url}"
+      CrystalTools.log "git repo on: #{@path}"
+      CrystalTools.log "git url: #{@url}"
     end
 
     # make sure we use ssh instead of https for pushing
@@ -230,7 +268,7 @@ module CrystalTools
 
     # returns true if sshagent is loaded with at least 1 key
     private def sshagent_loaded
-      @gitrepo_factory.sshagent_loaded
+      @gitrepo_factory.not_nil!.sshagent_loaded
     end
 
     # return the git url as https
@@ -244,7 +282,7 @@ module CrystalTools
     end
 
     private def dir_account_ensure
-      path0 = Path["#{gitrepo_factory.path_code}/#{@provider}/#{@account}"].expand(home: true)
+      path0 = Path["#{gitrepo_factory.not_nil!.path_code}/#{@provider}/#{@account}"].expand(home: true)
       unless Dir.exists?(path0.to_s)
         CrystalTools.log "create path: #{path0.to_s}", 3
         Dir.mkdir_p(path0)
@@ -349,6 +387,7 @@ module CrystalTools
 
           Executor.exec(cmd)
           pull()
+          self.gitrepo_factory.not_nil!.add(@name, self)
           return File.join(account_dir, @name)
         end
       end
@@ -367,13 +406,14 @@ module CrystalTools
 
     # delete the repo
     def delete
+      self.gitrepo_factory.not_nil!.remove(@name)
       FileUtils.rm_rf(@path)
     end
 
     # commit the new info, automatically do an add of all files
     def commit(msg : String)
       self.ensure
-      if @gitrepo_factory.interactive
+      if @gitrepo_factory.not_nil!.interactive
         if msg == ""
           puts "Changes found in repo: #{@path}"
           puts "please provide message:"
