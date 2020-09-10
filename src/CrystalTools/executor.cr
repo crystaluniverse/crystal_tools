@@ -116,19 +116,25 @@ module CrystalTools
     end
 
     def self.package_install(name = "",expiration_check = 3600*24*7, reset = false)
-      if RedisFactory.done_check("package.install.#{name}") && reset == false
-        return
+      # important check otherwise dead lock happens
+      # Redis factory try to call this function which tries to call redis factory
+      if name != "redis-server"
+        if RedisFactory.done_check("package.install.#{name}") && reset == false
+          return
+        end
       end
       if platform == "osx"
-        exec "brew install #{name}"
+        exec("brew install #{name}", stdout: false)
       elsif platform == "ubuntu"
-        exec "apt install #{name} -y"
+        exec("sudo apt install #{name} -y", stdout: false)
       elsif platform == "alpine"
-        exec "apk install #{name}"
+        exec("apk install #{name}", stdout: false)
       else
         raise "platform not supported, only support osx, ubuntu & alpine"
       end
-      RedisFactory.done_set("package.install.#{name}", expiration: expiration_check)
+      if name != "redis-server"
+        RedisFactory.done_set("package.install.#{name}", expiration: expiration_check)
+      end
     end
 
     def self.package_upgrade(expiration_check = 3600*24*7, reset = false)

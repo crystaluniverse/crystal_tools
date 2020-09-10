@@ -231,14 +231,14 @@ module CrystalTools
     def self.core_get
 
       if !@@sessions.has_key?("core")
-
         if !Executor.cmd_exists_check "redis-cli"
           if Executor.platform == "osx"
-            Executor.exec "brew unlink redis", die = false
-            Executor.exec "brew install redis"
-            Executor.exec "brew link redis"
+            Executor.exec("brew unlink redis", die = false, stdout: false)
+            Executor.exec("brew install redis", stdout: false)
+            Executor.exec("brew link redis", stdout: false)
           else
-            Executor.package_install "redis-server "
+            Executor.package_install "redis-server"
+            Executor.exec("sudo service redis-server stop") # stop because it will be started using sockets later
           end
         end
 
