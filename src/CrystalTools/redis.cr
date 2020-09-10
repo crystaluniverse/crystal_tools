@@ -239,6 +239,7 @@ module CrystalTools
           else
             Executor.package_install "redis-server"
             Executor.exec("sudo service redis-server stop") # stop because it will be started using sockets later
+            sleep 0.3
           end
         end
 
@@ -249,7 +250,7 @@ module CrystalTools
           #   Executor.exec "sysctl vm.overcommit_memory=1"
           # end
           Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
-          sleep 0.1
+          sleep 0.3
         end
 
       end
