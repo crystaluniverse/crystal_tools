@@ -398,7 +398,7 @@ module CrystalTools
 
           Executor.exec(cmd)
           pull()
-          self.gitrepo_factory.not_nil!.add(@name, @path, self)
+          self.gitrepo_factory.not_nil!.add(@name, @path, String.new(self.to_msgpack))
           return File.join(account_dir, @name)
         end
       end
