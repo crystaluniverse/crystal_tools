@@ -244,15 +244,14 @@ module CrystalTools
         end
 
         if !core_exists
-          CrystalTools.log "core redis does not exist yet", 2
-          # test redis exists
-          # if Executor.platform == "osx"
-          #   Executor.exec "sysctl vm.overcommit_memory=1"
-          # end
+          CrystalTools.log "Redis -core does not exist yet", 3
+	  CrystalTools.log "Redis -core stop any running redis instances", 2 
+          # Killing & Resrarting redis with unix socket support
+          Executor.exec("sudo service redis-server stop")
+	  CrystalTools.log "Redis -core start redis again with unix socket support", 2 
           Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
           sleep 0.3
         end
-
       end
 
       client_get "core"

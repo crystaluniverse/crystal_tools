@@ -23,20 +23,25 @@ module CrystalTools
     end
 
     def set_scanned
-      @@redis.set("gitrepos::scanned::#{@path_code}", true)
+      @@redis.setex("gitrepos::scanned::#{@path_code}", 600, true)
     end
 
-    def add(reponame, repo)
-      CrystalTools.log "GITREPOS -cache @#{@path_code}/#{reponame}", 2
+    def add(reponame, repopath, repo)
+      CrystalTools.log "GITREPOS -cache add @#{repopath}", 2
       @@redis.hset("gitrepos::repos::#{@path_code}", reponame, repo)
     end
 
     def remove(reponame)
-      CrystalTools.log "GITREPOS -load from cache @#{@path_code}", 2
+      CrystalTools.log "GITREPOS -cache remove @#{repopath}", 2
       @@redis.hdel("gitrepos::repos::#{@path_code}", reponame)
     end
 
     def repos
+      if !self.scanned
+        CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
+        self.scan
+        self.set_scanned
+      end
       data = @@redis.hgetall("gitrepos::repos::#{@path_code}")
       result = Hash(String, GITRepo).new
       i = 0
@@ -45,7 +50,6 @@ module CrystalTools
         if j > data.size
           break
         end
-
         reponame = data[i].as(String)
         repo = data[j].as(String)
         repo_obj = GITRepo.from_msgpack(repo.to_slice)
@@ -74,11 +78,9 @@ module CrystalTools
       end
 
       if reload || !self.scanned
-        CrystalTools.log "GITREPOS -scan filesystem @#{@path_code}", 2
+        CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
         self.scan
-        self.set_scanned
-      else
-        CrystalTools.log "GITREPOS -load from cache @#{@path_code}", 2
+        self.set_scanned        
       end
     end
 
@@ -126,6 +128,7 @@ module CrystalTools
         end
 
         if self.repos.has_key?(nameL)
+          CrystalTools.log "GITREPOS -cache load repo from @#{@path_code}/#{nameL}", 2
           return self.repos[nameL]
         end
       end
@@ -169,7 +172,7 @@ module CrystalTools
           if name == "home"
             name = Path[File.dirname(repo_dir)].basename.downcase
           end
-          CrystalTools.log("GITREPOS -load #{repo_dir}", 2)
+          CrystalTools.log("GITREPOS -filesystem loading  @#{repo_dir}", 2)
           repo = GITRepo.new gitrepo_factory: self, path: repo_dir, name: name
           if repos[name]? != nil
             CrystalTools.error "Found duplicate name in repo structure, each name needs to be unique\n#{repos[name].path} and #{repo_dir}"
@@ -179,7 +182,7 @@ module CrystalTools
       end
 
       repos.each do |reponame, repo|
-        self.add(reponame, String.new(repo.to_msgpack))
+        self.add(reponame, repo.path, String.new(repo.to_msgpack))
       end
     end
   end
@@ -395,7 +398,7 @@ module CrystalTools
 
           Executor.exec(cmd)
           pull()
-          self.gitrepo_factory.not_nil!.add(@name, self)
+          self.gitrepo_factory.not_nil!.add(@name, @path, self)
           return File.join(account_dir, @name)
         end
       end
