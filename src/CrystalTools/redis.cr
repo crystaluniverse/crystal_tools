@@ -245,16 +245,24 @@ module CrystalTools
 
         if !core_exists
           CrystalTools.log "Redis -core does not exist yet", 3
-	  CrystalTools.log "Redis -core stop any running redis instances", 2 
+	        CrystalTools.log "Redis -core stop any running redis instances", 2 
           # Killing & Resrarting redis with unix socket support
           Executor.exec("sudo service redis-server stop")
-	  CrystalTools.log "Redis -core start redis again with unix socket support", 2 
+	        CrystalTools.log "Redis -core start redis again with unix socket support", 2 
           Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
           sleep 0.3
         end
       end
 
       client_get "core"
+    end
+
+    def self.get_existing_core
+      if self.core_exists
+        self.core_get
+      else
+        nil
+      end
     end
 
     def self.core_exists
