@@ -100,29 +100,30 @@ module CrystalTools
     end
   end
 
-  class GITRepoFactory   
+  class GITRepoFactory
+    @@cache = GitRepoCache.new
+
     property environment : String
     property path_find : String
     property path_code : String
     property interactive = true
-    property cache = GitRepoCache.new
-
+    
     def scanned
-      self.cache.get("gitrepos::scanned::#{@path_code}") == "true"
+      @@cache.get("gitrepos::scanned::#{@path_code}") == "true"
     end
 
     def set_scanned
-      self.cache.setex("gitrepos::scanned::#{@path_code}", 600, "true")
+      @@cache.setex("gitrepos::scanned::#{@path_code}", 600, "true")
     end
 
     def add(reponame, repopath, repo)
       CrystalTools.log "GITREPOS -cache add @#{repopath}", 2
-      self.cache.hset("gitrepos::repos::#{@path_code}", reponame, repo)
+      @@cache.hset("gitrepos::repos::#{@path_code}", reponame, repo)
     end
 
     def remove(reponame)
       CrystalTools.log "GITREPOS -cache remove @#{repopath}", 2
-      self.cache.hdel("gitrepos::repos::#{@path_code}", reponame)
+      @@cache.hdel("gitrepos::repos::#{@path_code}", reponame)
     end
 
     def repos
@@ -131,7 +132,7 @@ module CrystalTools
         self.scan
         self.set_scanned
       end
-      data = self.cache.hgetall("gitrepos::repos::#{@path_code}")
+      data = @@cache.hgetall("gitrepos::repos::#{@path_code}")
       result = Hash(String, GITRepo).new
       i = 0
       j = 1
