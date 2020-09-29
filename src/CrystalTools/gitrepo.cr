@@ -3,151 +3,70 @@ require "msgpack"
 module CrystalTools
   HTTP_REPO_URL = /(https:\/\/)?(?P<provider>.+)(?P<suffix>\..+)\/(?P<account>.+)\/(?P<repo>.+)/
   SSH_REPO_URL  = /git@(?P<provider>.+)(?P<suffix>\..+)\:(?P<account>.+)\/(?P<repo>.+).git/
-  
-  # use Redis, otherwise local cache
-  class GitRepoCache
-    property redis : CrystalTools::RedisClient? =  nil
-    # {key : ["-1", "key1", "value1", "key2", "value2"]}  first element is always expiration time, -1 never expires
-    property local : Hash(String, Array(String))
 
-    def initialize
-      @redis = RedisFactory.get_existing_core
-      @local = Hash(String, Array(String)).new 
+  # struct GitConfig
 
-      if @redis.nil?
-        CrystalTools.log "GITREPOS -cache (MEMORY) -Redis is not running or running without unix sockets-", 3
-      else
-        CrystalTools.log "GITREPOS -cache (REDIS)", 2
-      end
-    end
+  # end
+  #msgpack serialize and put in redis 
 
-    def get(key)
-      if @redis.nil?
-        if !@local.has_key? key
-          return ""
-        end
-        v = @local[key]
-        if v[0] != -1 && v[0].to_i64 > Time.utc.to_unix
-          return ""
-        end
-        return v[1]
-      else
-        @redis.not_nil!.get(key)
-      end
-    end
-
-    def setex(key, timeout, value)
-      if @redis.nil?
-        v = Array(String).new
-        v << timeout.to_s
-        v << value
-        @local[key] = v 
-      else
-        @redis.not_nil!.setex(key, timeout, value)
-      end
-    end
-
-    def hset(col, key, value)
-      if @redis.nil?
-        if !@local.has_key? col
-          @local[col] = Array(String).new
-          @local[col] << "-1"
-        end
-        
-        @local[col] << key
-        @local[col] << value
-      else
-        @redis.not_nil!.hset(col, key, value)
-      end
-    end
-
-    def hdel(col, key)
-      if @redis.nil?
-        if @local.has_key? col
-          @local.delete(col)
-        end
-      else
-        @redis.not_nil!.hdel(col, key, value)
-      end
-    end
-
-    def hgetall(col)
-      result = Hash(String, String).new
-      if @redis.nil?
-        data = Array(String).new
-        if @local.has_key? col
-          v = @local[col]
-          if v[0] == "-1" || v[0].to_i64 < Time.utc.to_unix
-            data = v[1..-1]
-          end
-        end
-      else
-        data = @redis.not_nil!.hgetall(col)
-      end
-      i = 0
-      j = 1
-      data.each do |item|
-        if j > data.size
-          break
-        end
-        reponame = data[i].as(String)
-        repo = data[j].as(String)
-        result[reponame] = repo
-        i +=2
-        j += 2
-      end
-      result
-    end
-  end
-
-  class GITRepoFactory
-    @@cache = GitRepoCache.new
+  class GITRepoFactory   
+    @@redis : CrystalTools::RedisClient? = nil
 
     property environment : String
     property path_find : String
     property path_code : String
     property interactive = true
-    
+    property cache = true
+
     def scanned
-      @@cache.get("gitrepos::scanned::#{@path_code}") == "true"
+      @@redis.not_nil!.get("gitrepos::scanned::#{@path_code}") == "true"
     end
 
     def set_scanned
-      @@cache.setex("gitrepos::scanned::#{@path_code}", 600, "true")
+      @@redis.not_nil!.setex("gitrepos::scanned::#{@path_code}", 600, true)
     end
 
     def add(reponame, repopath, repo)
       CrystalTools.log "GITREPOS -cache add @#{repopath}", 2
-      @@cache.hset("gitrepos::repos::#{@path_code}", reponame, repo)
+      @@redis.not_nil!.hset("gitrepos::repos::#{@path_code}", reponame, repo)
     end
 
     def remove(reponame)
       CrystalTools.log "GITREPOS -cache remove @#{repopath}", 2
-      @@cache.hdel("gitrepos::repos::#{@path_code}", reponame)
+      @@redis.not_nil!.hdel("gitrepos::repos::#{@path_code}", reponame)
     end
 
     def repos
-      if !self.scanned
-        CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
-        self.scan
-        self.set_scanned
-      end
-      data = @@cache.hgetall("gitrepos::repos::#{@path_code}")
-      result = Hash(String, GITRepo).new
-      i = 0
-      j = 1
-      data.each do |k, v|
-        if j > data.size
-          break
+      if @cache
+        if !self.scanned
+          CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
+          self.scan
+          self.set_scanned
         end
-        repo_obj = GITRepo.from_msgpack(v.to_slice)
-        repo_obj.gitrepo_factory = self
-        result[k] = repo_obj 
+        data = @@redis.not_nil!.hgetall("gitrepos::repos::#{@path_code}")
+        result = Hash(String, GITRepo).new
+        i = 0
+        j = 1
+        data.each do |item|
+          if j > data.size
+            break
+          end
+          reponame = data[i].as(String)
+          repo = data[j].as(String)
+          repo_obj = GITRepo.from_msgpack(repo.to_slice)
+          repo_obj.gitrepo_factory = self
+          result[reponame] = repo_obj 
+          i +=2
+          j += 2
+        end
+      else
+        CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
+        result = self.scan
       end
       result
     end
 
-    def initialize(@environment = "", path = "", reload=false)
+    def initialize(@environment = "", path = "", reload=false, @cache=true)
       @sshagent_loaded = Executor.exec_ok("ssh-add -l") #check if there is an sshagent
       if path == "."
         @path_find = Dir.current
@@ -163,10 +82,18 @@ module CrystalTools
         @path_code = "#{@path_code}_#{@environment}"
       end
 
-      if reload || !self.scanned
+      if ! @cache
         CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
         self.scan
-        self.set_scanned        
+      end
+
+      if @cache 
+        @@redis = RedisFactory.core_get()
+        if reload || !self.scanned
+          CrystalTools.log "GITREPOS -filesystem scanning @#{@path_code} ...", 2
+          self.scan
+          self.set_scanned 
+        end       
       end
     end
 
@@ -214,7 +141,9 @@ module CrystalTools
         end
 
         if self.repos.has_key?(nameL)
-          CrystalTools.log "GITREPOS -cache load repo from @#{@path_code}/#{nameL}", 2
+          if @cache
+            CrystalTools.log "GITREPOS -cache load repo from @#{@path_code}/#{nameL}", 2
+          end
           return self.repos[nameL]
         end
       end
@@ -229,7 +158,7 @@ module CrystalTools
         name = Path[path].basename
       end
 
-      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth
+      gr = GITRepo.new gitrepo_factory: self, name: name, path: path, url: url, branch: branch, branchswitch: branchswitch, depth: depth, cache: @cache
       self.repos[nameL] = gr
       gr.ensure
       gr
@@ -267,9 +196,12 @@ module CrystalTools
         end
       end
 
-      repos.each do |reponame, repo|
-        self.add(reponame, repo.path, String.new(repo.to_msgpack))
+      if @cache
+        repos.each do |reponame, repo|
+          self.add(reponame, repo.path, String.new(repo.to_msgpack))
+        end
       end
+      repos
     end
   end
 
@@ -290,6 +222,7 @@ module CrystalTools
     property provider_suffix = ".com"
     property environment = ""
     property depth = 0
+    property cache = true
 
     @[MessagePack::Field(ignore: true)]
     property gitrepo_factory : GITRepoFactory? = nil
@@ -301,7 +234,7 @@ module CrystalTools
       "GitRepo<#{@name} at #{@path}>"
     end
 
-    def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @depth = 0)
+    def initialize(@gitrepo_factory, @name = "", @path = "", @url = "", @branch = "", @branchswitch = false, @depth = 0, @cache=true)
       if @path == "" && @url == ""
         CrystalTools.error "path and url are empty #{name}"
       end
@@ -484,7 +417,9 @@ module CrystalTools
 
           Executor.exec(cmd)
           pull()
-          self.gitrepo_factory.not_nil!.add(@name, @path, String.new(self.to_msgpack))
+          if @cache
+            self.gitrepo_factory.not_nil!.add(@name, @path, String.new(self.to_msgpack))
+          end
           return File.join(account_dir, @name)
         end
       end
@@ -503,7 +438,9 @@ module CrystalTools
 
     # delete the repo
     def delete
-      self.gitrepo_factory.not_nil!.remove(@name)
+      if @cache
+        self.gitrepo_factory.not_nil!.remove(@name)
+      end
       FileUtils.rm_rf(@path)
     end
 
