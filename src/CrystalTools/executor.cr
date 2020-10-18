@@ -42,6 +42,8 @@ module CrystalTools
     #   # end
 
     def self.exec(cmd, error_msg = "", stdout = true, dolog = true, die = true)
+      print("\n")
+      CrystalTools.log "CMD: #{cmd}", 2
       iserror : Bool = false
       if dolog
         CrystalTools.log "EXEC: '#{cmd}'"
@@ -49,6 +51,14 @@ module CrystalTools
       if stdout
         res = `#{cmd}`
         iserror = !$?.success?
+        if !iserror
+          res.split("\n").each do |line|
+            CrystalTools.log "RES: '#{line}'", 2
+          end
+        else
+          CrystalTools.log "ERROR: can not execute #{cmd}", 3
+        end
+        print("\n\n")
       else
         # log "get stdout", 3
         stdout1,stdin1 = IO.pipe(read_blocking=false,write_blocking=false)
@@ -108,12 +118,11 @@ module CrystalTools
           return ""
         end
         # TODO: how can we read from the stderror
-        if error_msg == ""
-          CrystalTools.error "could not execute: \n#{cmd}\n**RES:**\n#{res}"
-        else
+        if error_msg != ""
           CrystalTools.error "#{error_msg}", res
         end
       end
+      
       return res
     end
 
