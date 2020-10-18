@@ -247,7 +247,9 @@ module CrystalTools
           CrystalTools.log "Redis -core does not exist yet", 3
 	        CrystalTools.log "Redis -core stop any running redis instances", 2 
           # Killing & Resrarting redis with unix socket support
-          Executor.exec("sudo service redis-server stop")
+          if ! Executor.platform == "osx"
+            Executor.exec("sudo service redis-server stop")
+          end
 	        CrystalTools.log "Redis -core start redis again with unix socket support", 2 
           Executor.exec "redis-server --unixsocket /tmp/redis.sock --port 6379 --maxmemory 10000000 --daemonize yes"
           sleep 0.3

@@ -67,6 +67,7 @@ module CrystalTools
         spawn do
           loop do
             outputs = stdout1.gets
+            puts "stdout" #does never get here
             if outputs
               CrystalTools.log "RES: '#{outputs}'", 2
             end
@@ -76,6 +77,7 @@ module CrystalTools
         spawn do
           loop do
             errors = stdout2.gets
+            puts "stderr"  #does never get here
             if errors
               CrystalTools.log "RES: '#{errors}'", 3
             end

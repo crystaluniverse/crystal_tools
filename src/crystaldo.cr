@@ -102,7 +102,7 @@ module CrystalDo
           run do |opts, args|
             gitrepo_factory = GITRepoFactory.new(environment: opts.env, path: args.path, reload: opts.reload)
             gitrepo_factory.repos.each do |name,r|
-              puts "\n\n - #{r.name.ljust(25)} : #{r.path}"
+              puts " - #{r.name.ljust(25)} : #{r.path}"
             end        
           end
         end        
@@ -323,15 +323,14 @@ module CrystalDo
 
         sub "jumpscale" do
           help short: "-h"
-          usage "ct install jumpscale [options]"
+          usage "ct install jumpscale"
           desc "install jumpscale"
-
-          option "-b WORD", "--branch=WORD", type: String, desc: "Log modes [NORMAL/CI/QUIET/AUTO]", default: "development"
-          option "-e WORD", "--exec-mode=WORD", type: String, desc: "Execution modes [parallel/sequential]", default: "parallel"
-          argument "config", type: String, required: true, desc: "configuration file path"
-
+          option "-r", "--reset", type: Bool, desc: "If true then will remove local changes", default: false
+          # option "-b WORD", "--branch=WORD", type: String, desc: "Log modes [NORMAL/CI/QUIET/AUTO]", default: "development"
+          # option "-e WORD", "--exec-mode=WORD", type: String, desc: "Execution modes [parallel/sequential]", default: "parallel"
+          # argument "config", type: String, required: true, desc: "configuration file path"
           run do |opts, args|
-            installer = InstallerJumpscale.install()
+            installer = InstallerJumpscale.install(reset = opts.reset)
           end
         end
 
