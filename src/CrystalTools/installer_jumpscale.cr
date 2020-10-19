@@ -30,7 +30,7 @@ module CrystalTools
       
       CrystalTools.log "get code of jumpscale sdk", 2
 
-      self.update(reset = reset, redo = redo)
+      self.update(reset, redo)
 
     end
 
