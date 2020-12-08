@@ -3,6 +3,8 @@
 # this script to install tfweb and conscious_internet
 # tfweb port is 3000
 
+set +ex
+
 if [[ "$OSTYPE" != "darwin"* ]] && [[ "$OSTYPE" != "linux-gnu"* ]]; then
     echo OS is not supported ..
     exit 1
@@ -16,6 +18,10 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     fi    
 
     if ! [ -x "$(command -v curl)" ]; then
+    apt install curl -y
+    fi    
+
+    if ! [ -x "$(command -v wget)" ]; then
     apt install curl -y
     fi    
 
@@ -51,6 +57,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     brew install git
     fi
 
+    if ! [ -x "$(command -v wget)" ]; then
+    brew install wget
+    fi    
+
     if ! [ -x "$(command -v tmux)" ]; then
     brew install tmux
     fi
@@ -68,6 +78,8 @@ fi
 ssh-keygen -F github.com || ssh-keyscan github.com >> ~/.ssh/known_hosts
     
 rm -f /usr/local/bin/ct 2>&1 > /dev/null
+
+set +ex
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     set -ex
