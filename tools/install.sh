@@ -27,6 +27,10 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     apt install curl -y
     fi    
 
+    if ! [ -x "$(command -v yarn)" ]; then
+    apt install yarn -y
+    fi    
+
     if ! [ -x "$(command -v git)" ]; then
     apt install git -y
     fi
@@ -66,6 +70,10 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     if ! [ -x "$(command -v tmux)" ]; then
     brew install tmux
     fi
+
+    if ! [ -x "$(command -v yarn)" ]; then
+    brew install yarn
+    fi    
 
     if ! [ -x "$(command -v rsync)" ]; then
     brew install rsync
