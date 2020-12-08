@@ -10,6 +10,8 @@ if [[ "$OSTYPE" != "darwin"* ]] && [[ "$OSTYPE" != "linux-gnu"* ]]; then
     exit 1
 fi
 
+echo " - INSTALL DEPENDENCIES"
+
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
     echo "make sure git, mc, tmux installed" 
     if ! [ -x "$(command -v mc)" ]; then
@@ -81,8 +83,10 @@ rm -f /usr/local/bin/ct 2>&1 > /dev/null
 
 set +ex
 
+echo " - DOWNLOAD CT TOOLS"
+
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    set -ex
+    set -e
     cd /tmp
     rm -f /tmp/ct_linux
     wget https://github.com/crystaluniverse/crystaltools/releases/download/v1.0/ct_linux
@@ -91,13 +95,14 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
 fi
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
-    set -ex
+    set -e
     cd /tmp
     rm -f /tmp/ct_osx
     wget https://github.com/crystaluniverse/crystaltools/releases/download/v1.0/ct_osx
     cp ct_osx /usr/local/bin/ct
 fi
 
+echo " - DOWNLOAD OK"
 
 chmod 770 /usr/local/bin/ct
 
