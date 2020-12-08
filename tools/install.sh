@@ -13,7 +13,7 @@ fi
 echo " - INSTALL DEPENDENCIES"
 
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    echo "make sure git, mc, tmux installed" 
+    # echo "make sure git, mc, tmux installed" 
     if ! [ -x "$(command -v mc)" ]; then
     apt update
     apt install mc -y
@@ -71,9 +71,17 @@ if [[ "$OSTYPE" == "darwin"* ]]; then
     brew install tmux
     fi
 
-    if ! [ -x "$(command -v yarn)" ]; then
-    brew install yarn
-    fi    
+    if ! [ -x "$(command -v node)" ]; then
+    brew install node
+    fi
+
+    # if ! [ -x "$(command -v gcc)" ]; then
+    # xcode-select --install
+    # fi        
+
+    # if ! [ -x "$(command -v yarn)" ]; then
+    # brew install yarn
+    # fi    
 
     if ! [ -x "$(command -v rsync)" ]; then
     brew install rsync
